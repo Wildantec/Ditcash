@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  db-ditcash:
+    image: mysql:8.0
+    container_name: db_ditcash
+    restart: always
+    environment:
+      MYSQL_DATABASE: ditcash_db
+      MYSQL_ROOT_PASSWORD: Wildantec2026
+    volumes:
+      - ditcash_mysql_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+
+  app-ditcash:
+    build: .
+    container_name: app_ditcash
+    restart: always
+    depends_on:
+      - db-ditcash
+    environment:
+      DATABASE_URL: "mysql://root:Wildantec2026@db-ditcash:3306/ditcash_db"
+    ports:
+      - "3001:3000"
+    command: npm start
+
+volumes:
+  ditcash_mysql_data:
