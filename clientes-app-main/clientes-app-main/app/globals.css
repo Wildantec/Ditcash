@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --foreground: #0f172a;
+  --background: #f8fafc;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+@layer base {
+  html {
+    /* Esto define que 1rem = 16px. Es el estándar. */
+    font-size: 16px; 
+  }
+
+  body {
+    @apply text-slate-700 leading-relaxed antialiased;
+    /* Forzamos un tamaño base normal para todo el texto */
+    font-size: 0.9375rem; /* Aproximadamente 15px */
+  }
+
+  /* Normalizamos los encabezados para que no sean exagerados */
+  h1 { @apply text-2xl font-bold tracking-tight; }
+  h2 { @apply text-xl font-bold tracking-tight; }
+  h3 { @apply text-lg font-bold; }
+}
