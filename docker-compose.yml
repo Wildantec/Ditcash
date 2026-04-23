@@ -27,3 +27,5 @@ services:
 
 volumes:
   ditcash_mysql_data:
+    external:
+      name: clientes-app-main_ditcash_mysql_data
