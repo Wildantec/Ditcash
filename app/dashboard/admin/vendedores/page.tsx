@@ -14,14 +14,22 @@ export default function GestionVendedoresConAuditoria() {
     try {
       setLoading(true)
       const data = await getVendedoresRanking()
-      setVendedores(data || [])
+      
+      const filtrados = (data || []).filter((u: any) => {
+        const nombre = u.nombre?.toLowerCase() || '';
+        const username = u.username?.toLowerCase() || '';
+        const rol = u.rol?.toLowerCase() || '';
+        return !(nombre.includes('admin') || username.includes('admin') || rol === 'admin');
+      })
+      
+      setVendedores(filtrados)
       
       if (vendedorSeleccionado) {
-        const actualizado = data.find((v: any) => v.id === vendedorSeleccionado.id)
+        const actualizado = filtrados.find((v: any) => v.id === vendedorSeleccionado.id)
         if (actualizado) setVendedorSeleccionado(actualizado)
       }
     } catch (error) {
-      console.error(error)
+      console.error("Error al inicializar:", error)
     } finally {
       setLoading(false)
     }
@@ -64,7 +72,7 @@ export default function GestionVendedoresConAuditoria() {
   const handleEliminar = async (id: number) => {
     const confirm = await Swal.fire({
       title: '¿Eliminar registro?',
-      text: 'Esta acción borrará la foto de Cloudinary y la base de datos.',
+      text: 'Esta acción borrará la foto de la base de datos.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -80,7 +88,6 @@ export default function GestionVendedoresConAuditoria() {
     }
   }
 
-  // Función para descargar la imagen
   const handleDownload = (url: string, nombre: string) => {
     const link = document.createElement('a')
     link.href = url
@@ -94,16 +101,16 @@ export default function GestionVendedoresConAuditoria() {
   )
 
   return (
-    <div className="p-6 md:p-10 bg-[#F8FAFC] min-h-screen text-[#001F3F]">
+    <div className="p-4 md:p-10 bg-[#F8FAFC] min-h-screen text-[#001F3F]">
       
       {!vendedorSeleccionado ? (
         <>
           <header className="mb-8 pb-4 border-b border-slate-200">
-            <h1 className="text-2xl font-black uppercase italic tracking-tighter leading-none">Gestión de Vendedores</h1>
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-2">Control de personal y auditoría</p>
+            <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter leading-none">Gestión de Vendedores</h1>
+            <p className="text-slate-400 font-bold text-[9px] md:text-[10px] uppercase tracking-widest mt-2">Control de personal y auditoría</p>
           </header>
 
-          <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+          <div className="hidden md:block bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-[#001F3F] text-white">
@@ -144,65 +151,100 @@ export default function GestionVendedoresConAuditoria() {
               </tbody>
             </table>
           </div>
+
+          <div className="md:hidden flex flex-col gap-4">
+            {vendedores.map((v) => {
+              const pendientes = v.evidencias?.filter((e: any) => e.estado === 'pendiente') || [];
+              const tienePendientes = pendientes.length > 0;
+              return (
+                <div key={v.id} className="bg-white p-5 rounded-[2rem] shadow-md border border-slate-100">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="max-w-[70%]">
+                      <h3 className="font-black uppercase text-xs leading-tight truncate">{v.nombre}</h3>
+                      <p className="text-[9px] text-slate-400 font-bold">CI: {v.cedula}</p>
+                    </div>
+                    <p className="font-black italic text-base text-[#001F3F]">${v.puntosAcumulados.toFixed(2)}</p>
+                  </div>
+                  
+                  <div className="flex items-center justify-between gap-3">
+                     {tienePendientes ? (
+                        <span className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-[7px] font-black uppercase animate-pulse">
+                          {pendientes.length} Pend.
+                        </span>
+                     ) : (
+                        <span className="text-[7px] font-bold text-slate-300 uppercase">Al día ✔</span>
+                     )}
+                     <button 
+                        onClick={() => setVendedorSeleccionado(v)} 
+                        className={`flex-grow py-3 rounded-xl text-[9px] font-black uppercase tracking-widest text-center ${tienePendientes ? 'bg-[#FFB800] text-[#001F3F]' : 'bg-slate-100 text-[#001F3F]'}`}
+                     >
+                        {tienePendientes ? 'AUDITAR' : 'DETALLES'}
+                     </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </>
       ) : (
-        <div>
-           <header className="mb-10 flex items-center justify-between bg-white p-6 rounded-[2rem] shadow-sm border">
-              <div className="flex items-center gap-6">
+        <div className="max-w-7xl mx-auto">
+           <header className="mb-6 flex flex-col md:flex-row items-center justify-between bg-white p-4 md:p-6 rounded-[1.5rem] md:rounded-[2rem] shadow-sm border gap-4">
+              <div className="flex items-center gap-4 w-full md:w-auto">
                  <button onClick={() => setVendedorSeleccionado(null)} className="w-10 h-10 bg-[#001F3F] text-white rounded-xl flex items-center justify-center hover:bg-[#FFB800] transition-colors shadow-lg font-bold text-xl">←</button>
-                 <h2 className="text-xl font-black uppercase italic tracking-tighter">{vendedorSeleccionado.nombre}</h2>
+                 <h2 className="text-base md:text-xl font-black uppercase italic tracking-tighter truncate">{vendedorSeleccionado.nombre}</h2>
               </div>
-              <div className="bg-slate-50 px-6 py-2 rounded-2xl border border-slate-100">
+              <div className="bg-slate-50 px-6 py-2 rounded-2xl border border-slate-100 w-full md:w-auto flex justify-between md:flex-col items-center md:items-end">
                  <p className="text-xl font-black text-[#FFB800] italic leading-none">${vendedorSeleccionado.puntosAcumulados.toFixed(2)}</p>
                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Saldo Aprobado</p>
               </div>
            </header>
 
-           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {evidencias.map((evi: any) => (
-                <div key={evi.id} className="bg-white rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-lg flex flex-col group transition-all hover:scale-[1.02]">
+                <div key={evi.id} className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-lg flex flex-col group transition-all">
                   <div className="aspect-square bg-slate-100 relative overflow-hidden">
-                    <img src={evi.urlImagen} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="evidencia" />
+                    <img src={evi.urlImagen} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="evidencia" />
                     
-                    {/* Botones Flotantes (Borrar y Guardar) */}
-                    <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => handleDownload(evi.urlImagen, evi.clienteNombre)} title="Guardar Imagen" className="bg-white text-blue-600 w-10 h-10 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-600 hover:text-white transition-all text-lg">💾</button>
-                        <button onClick={() => handleEliminar(evi.id)} title="Borrar Permanente" className="bg-white text-red-600 w-10 h-10 rounded-full flex items-center justify-center shadow-lg hover:bg-red-600 hover:text-white transition-all text-lg">🗑️</button>
+                    <div className="absolute top-2 right-2 flex flex-col gap-2">
+                        <button onClick={() => handleDownload(evi.urlImagen, evi.clienteNombre)} className="bg-white/90 backdrop-blur text-blue-600 w-8 h-8 rounded-full flex items-center justify-center shadow-md text-xs">💾</button>
+                        <button onClick={() => handleEliminar(evi.id)} className="bg-white/90 backdrop-blur text-red-600 w-8 h-8 rounded-full flex items-center justify-center shadow-md text-xs">🗑️</button>
                     </div>
 
-                    <div className={`absolute top-4 left-4 text-[8px] font-black px-3 py-1.5 rounded-lg uppercase text-white shadow-md ${evi.estado === 'pendiente' ? 'bg-orange-500 animate-pulse' : evi.estado === 'aprobado' ? 'bg-green-500' : 'bg-red-500'}`}>
+                    <div className={`absolute top-3 left-3 text-[7px] font-black px-2 py-1 rounded-md uppercase text-white shadow-md ${evi.estado === 'pendiente' ? 'bg-orange-500 animate-pulse' : evi.estado === 'aprobado' ? 'bg-green-500' : 'bg-red-500'}`}>
                       {evi.estado}
                     </div>
                   </div>
 
-                  <div className="p-6 flex flex-col flex-grow">
-                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Cliente Validado:</p>
-                    <p className="text-xs font-black uppercase text-[#001F3F] mb-4 truncate">{evi.clienteNombre}</p>
+                  <div className="p-5 flex flex-col flex-grow">
+                    <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest mb-1 italic">Cliente:</p>
+                    <p className="text-[11px] font-black uppercase text-[#001F3F] mb-4 line-clamp-1">{evi.clienteNombre}</p>
                     
-                    {/* MOTIVO DE RECHAZO (Igual a la imagen que me mostraste) */}
                     {evi.estado === 'rechazado' && (
-                      <div className="mb-4 p-4 bg-red-50 rounded-[1.5rem] border border-red-100">
-                        <p className="text-[8px] font-black text-red-400 uppercase tracking-widest mb-1">Motivo Ditec:</p>
-                        <p className="text-[10px] text-red-600 font-bold italic leading-tight uppercase">
+                      <div className="mb-4 p-3 bg-red-50 rounded-xl border border-red-100">
+                        <p className="text-[7px] font-black text-red-400 uppercase tracking-widest mb-1">Motivo Rechazo:</p>
+                        <p className="text-[9px] text-red-600 font-bold italic leading-tight uppercase line-clamp-2">
                           {evi.motivoRechazo || "No cumple requisitos"}
                         </p>
                       </div>
                     )}
 
+                    {/* CAMBIO AQUÍ: LEEMOS EL VALOR REAL DE LA EVIDENCIA */}
                     {evi.estado === 'aprobado' && (
-                       <p className="text-[9px] text-green-500 font-black uppercase tracking-widest mb-4 italic">✓ Acreditado +$2.00</p>
+                       <p className="text-[8px] text-green-500 font-black uppercase tracking-widest mb-4 italic">
+                        ✓ Acreditado +${Number(evi.valorPagado || 0).toFixed(2)}
+                       </p>
                     )}
 
                     {evi.estado === 'pendiente' && (
                       <div className="flex gap-2 mt-auto">
-                        <button onClick={() => handleRevisar(evi.id, true)} className="flex-1 bg-green-500 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg hover:bg-green-600 transition-all">Aprobar</button>
-                        <button onClick={() => handleRevisar(evi.id, false)} className="flex-1 bg-red-500 text-white py-3 rounded-2xl text-[9px] font-black uppercase shadow-lg hover:bg-red-600 transition-all">Rechazar</button>
+                        <button onClick={() => handleRevisar(evi.id, true)} className="flex-1 bg-green-500 text-white py-2.5 rounded-xl text-[8px] font-black uppercase shadow-md active:scale-95 transition-all">Aprobar</button>
+                        <button onClick={() => handleRevisar(evi.id, false)} className="flex-1 bg-red-500 text-white py-2.5 rounded-xl text-[8px] font-black uppercase shadow-md active:scale-95 transition-all">Rechazar</button>
                       </div>
                     )}
 
-                    <div className="mt-4 pt-4 border-t flex justify-between items-center opacity-40">
-                       <p className="text-[8px] font-bold uppercase">{new Date(evi.createdAt).toLocaleDateString()}</p>
-                       <p className="text-[8px] font-black italic">DITCASH</p>
+                    <div className="mt-4 pt-3 border-t flex justify-between items-center opacity-30">
+                       <p className="text-[7px] font-bold uppercase">{new Date(evi.createdAt).toLocaleDateString()}</p>
+                       <p className="text-[7px] font-black italic tracking-tighter">DITCASH</p>
                     </div>
                   </div>
                 </div>

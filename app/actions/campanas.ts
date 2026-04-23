@@ -52,7 +52,7 @@ export async function deleteCampana(id: number) {
   }
 }
 
-// 4. CREAR CAMPAÑA (CON SUBIDA DE IMAGEN)
+// 4. CREAR CAMPAÑA (ACTUALIZADO CON VALOR)
 export async function createCampana(formData: FormData) {
   try {
     const nombre = formData.get('nombre') as string
@@ -60,6 +60,7 @@ export async function createCampana(formData: FormData) {
     const fechaInicio = formData.get('fecha_inicio') as string
     const fechaFin = formData.get('fecha_cierre') as string
     const estado = formData.get('estado') as string
+    const valor = formData.get('valor') as string // <--- CAPTURAMOS EL VALOR
     const file = formData.get('foto') as File
 
     let urlImagen = ""
@@ -85,11 +86,12 @@ export async function createCampana(formData: FormData) {
     await prisma.campana.create({
       data: {
         nombre,
-        descripcion: detalle, // Mapeamos detalle a descripcion de la BD
+        descripcion: detalle,
         fechaInicio: new Date(fechaInicio),
         fechaFin: new Date(fechaFin),
         activa: estado === 'Activa',
-        urlImagen: urlImagen // Guardamos la URL de la foto
+        urlImagen: urlImagen,
+        valor: parseFloat(valor) || 0 // <--- GUARDAMOS EL VALOR EN LA BD
       },
     })
 
@@ -114,26 +116,36 @@ export async function getCampanaById(id: number) {
   }
 }
 
-// 6. ACTUALIZAR CAMPAÑA
+// 6. ACTUALIZAR CAMPAÑA (Versión Blindada)
 export async function updateCampana(id: number, data: any) {
   try {
+    // Validamos que el ID sea correcto
+    if (!id) throw new Error("ID de campaña no proporcionado");
+
     await prisma.campana.update({
       where: { id },
       data: {
         nombre: data.nombre,
-        descripcion: data.detalle,
-        fechaInicio: new Date(data.fecha_inicio),
-        fechaFin: new Date(data.fecha_cierre),
+        descripcion: data.detalle, // Mapeamos 'detalle' del formulario a 'descripcion' de la BD
+        // Validamos y convertimos las fechas
+        fechaInicio: data.fecha_inicio ? new Date(data.fecha_inicio) : undefined,
+        fechaFin: data.fecha_cierre ? new Date(data.fecha_cierre) : undefined,
+        // Convertimos el estado a boolean
         activa: data.estado === 'Activa',
-        // Si mandas una nueva URL de imagen en el data, se actualiza aquí
+        // Convertimos el valor a Float de Prisma (número decimal)
+        valor: parseFloat(data.valor) || 0,
         ...(data.urlImagen && { urlImagen: data.urlImagen })
       }
     })
+
     revalidatePath('/dashboard/admin/campanas')
+    revalidatePath(`/dashboard/admin/campanas/editar/${id}`)
+    
     return { success: true }
-  } catch (error) {
-    console.error(error)
-    return { error: "No se pudo actualizar la campaña" }
+  } catch (error: any) {
+    console.error("ERROR PRISMA UPDATE:", error);
+    // Devolvemos el error específico para que sepas qué pasó
+    return { error: `Error en BD: ${error.message || "No se pudo actualizar"}` }
   }
 }
 
@@ -142,7 +154,7 @@ export async function getCampanaPublica(id: number) {
   try {
     const campana = await prisma.campana.findUnique({
       where: { id },
-      select: { nombre: true, descripcion: true, urlImagen: true } 
+      select: { nombre: true, descripcion: true, urlImagen: true, valor: true } 
     })
     return campana
   } catch (error) {

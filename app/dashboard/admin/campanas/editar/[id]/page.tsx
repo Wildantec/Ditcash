@@ -15,7 +15,8 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
     detalle: '',
     fecha_inicio: '',
     fecha_cierre: '',
-    estado: 'Activa'
+    estado: 'Activa',
+    valor: '2.00' // <--- NUEVO CAMPO EN EL ESTADO
   })
 
   useEffect(() => {
@@ -27,7 +28,8 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
           detalle: campana.descripcion || '',
           fecha_inicio: new Date(campana.fechaInicio).toISOString().split('T')[0],
           fecha_cierre: new Date(campana.fechaFin).toISOString().split('T')[0],
-          estado: campana.activa ? 'Activa' : 'Pausada'
+          estado: campana.activa ? 'Activa' : 'Pausada',
+          valor: campana.valor?.toString() || '2.00' // <--- CARGAMOS EL VALOR DE LA BD
         })
       }
       setLoading(false)
@@ -39,6 +41,7 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
     e.preventDefault()
     setUpdating(true)
 
+    // Enviamos el objeto 'datos' que ahora incluye el campo 'valor'
     const res = await updateCampana(id, datos)
 
     if (res.error) {
@@ -70,6 +73,7 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
         </header>
         
         <form onSubmit={handleUpdate} className="space-y-6">
+          {/* NOMBRE */}
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">Nombre</label>
             <input 
@@ -80,6 +84,24 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
             />
           </div>
 
+          {/* CAMPO DE VALOR AGREGADO */}
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-[#FF8C00] uppercase tracking-widest ml-4">Valor por Evidencia ($)</label>
+            <div className="relative">
+              <span className="absolute left-8 top-1/2 -translate-y-1/2 font-black text-[#001F3F]">$</span>
+              <input 
+                type="number"
+                step="0.01"
+                min="0"
+                value={datos.valor}
+                onChange={(e) => setDatos({...datos, valor: e.target.value})}
+                className="w-full px-12 py-5 bg-orange-50/30 border border-orange-100 rounded-[1.8rem] font-black text-[#001F3F] outline-none focus:ring-2 focus:ring-[#FF8C00] transition-all" 
+                required 
+              />
+            </div>
+          </div>
+
+          {/* INDICACIONES */}
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">Indicaciones / Detalle</label>
             <textarea 
@@ -90,6 +112,7 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
             />
           </div>
 
+          {/* FECHAS */}
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">Fecha Inicio</label>
@@ -113,6 +136,7 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
+          {/* ESTADO */}
           <div className="space-y-2">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-4">Estado de Campaña</label>
             <select 
@@ -125,6 +149,7 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
             </select>
           </div>
 
+          {/* BOTONES */}
           <div className="flex justify-end gap-6 pt-6">
             <button type="button" onClick={() => router.back()} className="text-slate-300 font-bold text-[10px] uppercase tracking-widest hover:text-red-500">Cancelar</button>
             <button disabled={updating} className="bg-[#001F3F] text-[#FF8C00] px-10 py-5 rounded-[1.8rem] font-bold text-[11px] uppercase tracking-widest shadow-lg hover:scale-105 active:scale-95 transition-all">

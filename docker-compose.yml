@@ -21,9 +21,15 @@ services:
       - db-ditcash
     environment:
       DATABASE_URL: "mysql://root:Wildantec2026@db-ditcash:3306/ditcash_db"
+    # --- CAMBIOS PARA TIEMPO REAL ---
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    # --------------------------------
     ports:
       - "3001:3000"
-    command: npm start
+    command: npm run dev # <-- Cambiado a modo desarrollo
 
 volumes:
   ditcash_mysql_data:

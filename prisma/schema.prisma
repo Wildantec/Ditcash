@@ -50,6 +50,7 @@ model Campana {
   evidencias  Evidencia[]
   createdAt   DateTime    @default(now())
   urlImagen   String?
+  valor Float @default(0)
   @@map("campanas") // El nombre de la tabla en MySQL sí puede llevar 's' al final
 }
 
