@@ -9,7 +9,7 @@ export default function Footer() {
           
           {/* Columna 1: Logo y Eslogan */}
           <div className="col-span-1 md:col-span-1">
-            <Link href="/" className="text-xl font-bold text-blue-600">
+            <Link href="/" className="text-xl font-bold text-orange-600">
               CLIENTE<span className="text-slate-800">APP</span>
             </Link>
             <p className="mt-4 text-sm text-slate-500 leading-relaxed">
@@ -17,31 +17,6 @@ export default function Footer() {
               Seguridad y rapidez en un solo lugar.
             </p>
           </div>
-
-          {/* Columna 2: Enlaces Rápidos */}
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 tracking-wider uppercase">
-              Producto
-            </h3>
-            <ul className="mt-4 space-y-2">
-              <li><Link href="#" className="text-sm text-slate-600 hover:text-blue-600">Funcionalidades</Link></li>
-              <li><Link href="#" className="text-sm text-slate-600 hover:text-blue-600">Seguridad</Link></li>
-              <li><Link href="#" className="text-sm text-slate-600 hover:text-blue-600">Precios</Link></li>
-            </ul>
-          </div>
-
-          {/* Columna 3: Soporte */}
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 tracking-wider uppercase">
-              Soporte
-            </h3>
-            <ul className="mt-4 space-y-2">
-              <li><Link href="#" className="text-sm text-slate-600 hover:text-blue-600">Documentación</Link></li>
-              <li><Link href="#" className="text-sm text-slate-600 hover:text-blue-600">Guías</Link></li>
-              <li><Link href="#" className="text-sm text-slate-600 hover:text-blue-600">Contacto</Link></li>
-            </ul>
-          </div>
-
           {/* Columna 4: Legal */}
           <div>
             <h3 className="text-sm font-semibold text-slate-900 tracking-wider uppercase">
@@ -60,7 +35,7 @@ export default function Footer() {
             &copy; 2026 Cliente App. Todos los derechos reservados.
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
-            <span className="text-xs text-slate-300 font-medium uppercase tracking-widest">Ditec S.A.</span>
+            <span className="text-xs text-slate-300 font-medium uppercase tracking-widest">DIDACTICOS Y TECNOLOGICOS WILDANTEC CIA.LTDA.</span>
           </div>
         </div>
       </div>
