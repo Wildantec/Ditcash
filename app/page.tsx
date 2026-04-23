@@ -8,122 +8,135 @@ import Footer from '@/app/components/Footer';
 
 export default function Home() {
   const [cedula, setCedula] = useState('');
+  const [password, setPassword] = useState('');
   const [aceptaPrivacidad, setAceptaPrivacidad] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // DATO QUEMADO PARA PRUEBAS
-  const CEDULA_PRUEBA = "1723456789";
-
-  const manejarConsulta = (e: React.FormEvent) => {
+  const manejarConsulta = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!aceptaPrivacidad) {
-      alert("Debes aceptar la política de privacidad para consultar tu estado de cuenta.");
+      alert("Debes aceptar la política de privacidad para ingresar.");
       return;
     }
 
     if (cedula.length < 10) {
-      alert("Por favor, ingresa un número de cédula válido (10 dígitos).");
+      alert("Por favor, ingresa una cédula válida.");
       return;
     }
 
-    // SIMULACIÓN DE CONSULTA A BASE DE DATOS
-    if (cedula === CEDULA_PRUEBA) {
-      // Si la cédula coincide con nuestro dato quemado, redirigimos
+    setLoading(true);
+    try {
+      // Simulación de ingreso
+      console.log("Ingresando...");
       router.push(`/clientes/estado-cuenta/${cedula}`);
-    } else {
-      // Si es cualquier otra cédula, simulamos que no existe en el sistema
-      alert("Cliente no encontrado. Para esta prueba usa la cédula: 1723456789");
+    } catch (error) {
+      alert("Error al ingresar.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-[#F8FAFC]">
       <Navbar />
       
-      <main className="flex-grow">
-        {/* Sección Hero con Estilo DITCASH */}
-        <div className="pt-32 pb-20 px-6 text-center">
-          <h1 className="text-5xl md:text-6xl font-extrabold text-[#001F3F] mb-6 leading-tight">
-            Simplifica tus finanzas y <br /> 
-            <span className="text-[#D4AF37]">gana</span> con ClientesAPP
-          </h1>
-          <p className="text-xl text-slate-600 mb-12 max-w-2xl mx-auto">
-            Consulta tu estado de cuenta al instante o gestiona tus pagos para ganar beneficios.
-          </p>
-          
-          {/* Card de Consulta por Cédula */}
-          <div className="max-w-2xl mx-auto bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,31,63,0.15)] border border-slate-50">
-            <form onSubmit={manejarConsulta}>
-              <div className="text-left mb-4">
-                <label htmlFor="cedula" className="text-xs font-bold text-[#001F3F] uppercase tracking-widest ml-1">
-                  Ingresa tu Cédula
-                </label>
-              </div>
-              
-              <div className="flex flex-col md:flex-row gap-4 mb-6">
-                <input 
-                  id="cedula"
-                  type="text" 
-                  maxLength={10}
-                  value={cedula}
-                  onChange={(e) => setCedula(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Ej: 1723456789"
-                  className="flex-grow px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] text-lg font-bold text-[#001F3F]"
-                />
-                <button 
-                  type="submit"
-                  className={`px-8 py-4 rounded-2xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${
-                    aceptaPrivacidad 
-                    ? 'bg-[#001F3F] text-white hover:bg-black hover:scale-105' 
-                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  Ver Estado de Cuenta
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                </button>
-              </div>
-
-              {/* CHECKLIST DE PRIVACIDAD */}
-              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 mb-4">
-                <label className="flex items-start gap-3 cursor-pointer group text-left">
-                  <input 
-                    type="checkbox" 
-                    checked={aceptaPrivacidad}
-                    onChange={() => setAceptaPrivacidad(!aceptaPrivacidad)}
-                    className="mt-1 w-5 h-5 accent-[#D4AF37] cursor-pointer"
-                  />
-                  <span className="text-xs text-slate-500 font-medium leading-tight">
-                    Acepto el tratamiento de mis datos personales de acuerdo con la <span className="text-[#001F3F] font-bold underline">Política de Privacidad</span> de ClientesApp. Entiendo que mi información financiera es confidencial y protegida.
-                  </span>
-                </label>
-              </div>
-            </form>
-
-            <p className="mt-4 text-sm text-slate-500 text-left">
-              ¿Eres vendedor? <Link href="/login" className="text-[#D4AF37] font-bold hover:underline">Inicia sesión aquí</Link> para ver tus campañas.
-            </p>
+      <main className="flex-grow flex flex-col items-center justify-center px-4 py-12 md:py-16">
+        
+        {/* SECCIÓN DEL LOGO SIN CÍRCULO */}
+        <div className="mb-10 animate-in fade-in slide-in-from-top duration-1000 flex flex-col items-center">
+          <div className="relative p-2">
+            {/* Contenedor simple para el logo */}
+            <Image 
+              src="/logo-ditec.png" 
+              alt="DITCASH Logo"
+              width={220} // Aumenté un poco el tamaño para que luzca más
+              height={100}
+              className="object-contain"
+              priority 
+            />
           </div>
         </div>
 
-        {/* Sección de Información Adicional */}
-        <div className="py-20 bg-slate-50 border-y border-slate-100">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto px-6">
-            <div className="text-center p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
-              <div className="text-[#D4AF37] text-3xl mb-3">⚡</div>
-              <h3 className="font-bold text-[#001F3F] mb-2">Consulta Rápida</h3>
-              <p className="text-sm text-slate-600">Accede a tus saldos con solo tu número de identificación al instante.</p>
+        {/* TÍTULO */}
+        <div className="text-center mb-10">
+          <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-[0.3em]">
+            Gestión de incentivos y estados de cuenta
+          </p>
+        </div>
+        
+        {/* CARD DE LOGIN */}
+        <div className="w-full max-w-[400px] bg-white p-8 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-[0_40px_80px_rgba(0,31,63,0.08)] border border-slate-100">
+          <form onSubmit={manejarConsulta} className="space-y-6">
+            
+            {/* CÉDULA */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[#001F3F] uppercase tracking-widest ml-1">
+                Identificación (Cédula)
+              </label>
+              <input 
+                type="text" 
+                maxLength={10}
+                value={cedula}
+                onChange={(e) => setCedula(e.target.value.replace(/\D/g, ''))}
+                placeholder="0000000000"
+                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] text-lg font-bold text-[#001F3F] transition-all"
+                required
+              />
             </div>
-            <div className="text-center p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
-              <div className="text-[#D4AF37] text-3xl mb-3">🏆</div>
-              <h3 className="font-bold text-[#001F3F] mb-2">Gana Dinero</h3>
-              <p className="text-sm text-slate-600">Registra tus evidencias fotográficas y acumula $2.00 por cada una.</p>
+
+            {/* CONTRASEÑA */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-[#001F3F] uppercase tracking-widest ml-1">
+                Contraseña
+              </label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#D4AF37] text-lg font-bold text-[#001F3F] transition-all"
+                required
+              />
             </div>
-            <div className="text-center p-6 bg-white rounded-3xl shadow-sm border border-slate-100">
-              <div className="text-[#D4AF37] text-3xl mb-3">🛡️</div>
-              <h3 className="font-bold text-[#001F3F] mb-2">100% Seguro</h3>
-              <p className="text-sm text-slate-600">Protegemos tu privacidad con los estándares bancarios más altos del país.</p>
+
+            {/* PRIVACIDAD */}
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input 
+                  type="checkbox" 
+                  checked={aceptaPrivacidad}
+                  onChange={() => setAceptaPrivacidad(!aceptaPrivacidad)}
+                  className="mt-1 w-4 h-4 accent-[#001F3F] cursor-pointer"
+                />
+                <span className="text-[9px] text-slate-500 font-bold leading-tight uppercase">
+                  Acepto los términos y la <span className="text-[#D4AF37] underline">política de datos</span>.
+                </span>
+              </label>
             </div>
+
+            {/* BOTÓN */}
+            <button 
+              type="submit"
+              disabled={loading}
+              className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg transition-all flex items-center justify-center gap-3 ${
+                aceptaPrivacidad && !loading
+                ? 'bg-[#001F3F] text-white hover:bg-black hover:translate-y-[-2px]' 
+                : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {loading ? 'Cargando...' : 'Entrar'}
+              {!loading && (
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+            <Link href="/login" className="text-[10px] font-black text-[#D4AF37] uppercase tracking-tighter hover:text-[#001F3F] transition-colors">
+              Acceso exclusivo para Vendedores ➔
+            </Link>
           </div>
         </div>
       </main>
