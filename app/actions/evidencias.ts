@@ -15,7 +15,7 @@ cloudinary.config({
 });
 
 /**
- * REGISTRA EVIDENCIA: Ahora guarda el valor actual de la campaña
+ * REGISTRA EVIDENCIA: Con soporte para archivos optimizados
  */
 export async function registrarEvidenciaAction(formData: FormData, campanaId: string) {
   try {
@@ -31,7 +31,6 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     })
     if (!vendedor) return { error: "Vendedor no encontrado." }
 
-    // BUSCAMOS LA CAMPAÑA PARA SABER SU VALOR ACTUAL
     const campana = await prisma.campana.findUnique({
         where: { id: parseInt(campanaId) }
     })
@@ -41,19 +40,26 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
+    
+    // Generamos el Hash para evitar duplicados exactos
     const hash = crypto.createHash('sha256').update(buffer).digest('hex')
-
     const duplicado = await prisma.evidencia.findUnique({
       where: { imageHash: hash }
     })
 
     if (duplicado) {
-      return { error: "FRAUDE DETECTADO: Esta imagen ya ha sido utilizada anteriormente." }
+      return { error: "ESTA IMAGEN YA FUE SUBIDA: Por favor toma una foto nueva de la gestión." }
     }
 
+    // SUBIDA A CLOUDINARY CON OPTIMIZACIÓN AUTOMÁTICA
     const uploadResponse: any = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'ditcash_evidencias' },
+        { 
+          folder: 'ditcash_evidencias',
+          resource_type: 'image',
+          quality: "auto:good", // Optimiza el peso sin perder detalle legal
+          fetch_format: "auto"
+        },
         (error, result) => {
           if (error) reject(error)
           else resolve(result)
@@ -62,7 +68,7 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
       uploadStream.end(buffer)
     })
 
-    // GUARDAMOS CON EL VALOR DE LA CAMPAÑA
+    // GUARDAMOS CON EL VALOR REAL DE LA CAMPAÑA
     await prisma.evidencia.create({
       data: {
         clienteNombre,
@@ -72,7 +78,7 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
         campanaId: parseInt(campanaId),
         estado: 'pendiente',
         imageHash: hash,
-        valorPagado: campana.valor // <--- SE GUARDA EL VALOR DE LA CAMPAÑA (Ej: 5.00)
+        valorPagado: campana.valor 
       }
     })
 
@@ -81,7 +87,7 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
 
   } catch (error) {
     console.error("Error al registrar evidencia:", error)
-    return { error: "Hubo un problema al procesar la imagen." }
+    return { error: "Error de conexión: La imagen es muy pesada o el internet es inestable." }
   }
 }
 
@@ -98,7 +104,6 @@ export async function revisarEvidenciaAction(id: number, aprobado: boolean, moti
     if (!evidencia || evidencia.estado !== 'pendiente') return { error: "No procesable" }
 
     if (aprobado) {
-      // Al aprobar, el saldo del vendedor aumenta según el 'valorPagado' que ya tiene la evidencia
       await prisma.$transaction([
         prisma.evidencia.update({ where: { id }, data: { estado: 'aprobado' } }),
         prisma.vendedor.update({
@@ -121,7 +126,7 @@ export async function revisarEvidenciaAction(id: number, aprobado: boolean, moti
 }
 
 /**
- * GET HISTORIAL VENDEDOR (DINÁMICO)
+ * HISTORIAL Y OTROS GETTERS (DINÁMICOS)
  */
 export async function getHistorialVendedor() {
   try {
@@ -147,7 +152,6 @@ export async function getHistorialVendedor() {
         e.campanaId === c.id && e.estado === 'aprobado'
       )
       
-      // CAMBIO: Sumamos los valores reales, ya no multiplicamos por 2
       const total = aprobadas.reduce((sum:any, e:any) => sum + (Number(e.valorPagado) || 0), 0)
 
       return {
@@ -161,14 +165,10 @@ export async function getHistorialVendedor() {
       }
     })
   } catch (error) {
-    console.error("Error en historial:", error)
     return []
   }
 }
 
-/**
- * GET MIS EVIDENCIAS (Vendedor)
- */
 export async function getMisEvidencias(campanaId: number) {
   try {
     const cookieStore = await cookies()
@@ -189,9 +189,6 @@ export async function getMisEvidencias(campanaId: number) {
   } catch (error) { return [] }
 }
 
-/**
- * GET EVIDENCIAS BY VENDEDOR (Admin)
- */
 export async function getEvidenciasByVendedor(vendedorId: number) {
   try {
     const data = await prisma.evidencia.findMany({
@@ -207,9 +204,6 @@ export async function getEvidenciasByVendedor(vendedorId: number) {
   } catch (error) { return [] }
 }
 
-/**
- * ELIMINAR EVIDENCIA
- */
 export async function eliminarEvidenciaAction(id: number) {
   try {
     await prisma.evidencia.delete({ where: { id } })

@@ -29,11 +29,11 @@ export default async function AdminDashboard() {
         puntosAcumulados: totalVentas || v.evidencias.length * 10 // Si no hay valor, usamos conteo * 10
       };
     })
-    .sort((a, b) => b.puntosAcumulados - a.puntosAcumulados)
+    .sort((a:any, b:any) => b.puntosAcumulados - a.puntosAcumulados)
     .slice(0, 6);
 
   // Buscamos el máximo para que la barra sea relativa al mejor vendedor
-  const maxPuntos = Math.max(...rankingVendedores.map(v => v.puntosAcumulados), 100);
+  const maxPuntos = Math.max(...rankingVendedores.map((v:any) => v.puntosAcumulados), 100);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-12 text-[#001F3F]">
@@ -82,7 +82,7 @@ export default async function AdminDashboard() {
           </div>
         </Link>
 
-        <Link href="/dashboard/admin/vendedores" className="block group">
+        <Link href="/dashboard/admin/campanas" className="block group">
           <div className={`p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border transition-all duration-500 flex items-center justify-between ${pendientesTotal > 0 ? 'bg-orange-50 border-orange-200 shadow-orange-100' : 'bg-white border-slate-50'}`}>
             <div className="flex items-center gap-4 md:gap-6">
               <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-2xl md:text-3xl ${pendientesTotal > 0 ? 'bg-orange-500 text-white animate-pulse' : 'bg-orange-50'}`}>
