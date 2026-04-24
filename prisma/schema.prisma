@@ -35,6 +35,7 @@ model Vendedor {
   usuarioId        Int?        @unique
   usuario          User?       @relation(fields: [usuarioId], references: [id])
   evidencias       Evidencia[]
+  canjes           Canje[]     // <--- AGREGA ESTA LÍNEA (Es la que faltaba)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
@@ -73,10 +74,21 @@ model Premio {
   id          Int      @id @default(autoincrement())
   nombre      String
   descripcion String?
-  puntos      Float    // El valor en "puntos" o dólares que cuesta
+  puntos      Float    
   urlImagen   String
   publicId    String
   stock       Int      @default(1)
   activo      Boolean  @default(true)
+  reservado   Boolean  @default(false)
+  canjes      Canje[]  // Esta ya la tenías, está bien
+  createdAt   DateTime @default(now())
+}
+model Canje {
+  id          Int      @id @default(autoincrement())
+  vendedorId  Int
+  premioId    Int
+  vendedor    Vendedor @relation(fields: [vendedorId], references: [id])
+  premio      Premio   @relation(fields: [premioId], references: [id])
+  estado      String   @default("pendiente") 
   createdAt   DateTime @default(now())
 }

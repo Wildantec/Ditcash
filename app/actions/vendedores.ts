@@ -22,6 +22,7 @@ export async function getVendedorByUsuarioId(usuarioId: number) {
   }
 }
 
+// SALDO DEL VENDEDOR (CORREGIDO PARA SER DINÁMICO)
 export async function getSaldoVendedorAction() {
   try {
     const cookieStore = await cookies()
@@ -38,14 +39,18 @@ export async function getSaldoVendedorAction() {
 
     if (!vendedor) return 0
 
-    const totalAprobadas = await prisma.evidencia.count({
+    // Sumamos directamente los valores de la columna valorPagado de la BD
+    const agregado = await prisma.evidencia.aggregate({
       where: {
         vendedorId: vendedor.id,
         estado: 'aprobado'
+      },
+      _sum: {
+        valorPagado: true
       }
     })
 
-    return totalAprobadas * 2
+    return agregado._sum.valorPagado || 0
 
   } catch (error) {
     console.error("Error al obtener saldo del vendedor:", error)
@@ -53,30 +58,29 @@ export async function getSaldoVendedorAction() {
   }
 }
 
-// RANKING DE VENDEDORES CORREGIDO
+// RANKING DE VENDEDORES (CORREGIDO PARA USAR SUMA REAL)
 export async function getVendedoresRanking() {
   try {
-    // 1. Quitamos el filtro 'aprobado' del include para que traiga TODO
     const vendedoresRaw = await prisma.vendedor.findMany({
       include: {
         evidencias: true 
       }
     })
 
-    // 2. Procesamos manualmente para separar puntos de pendientes
-    const vendedoresProcesados = vendedoresRaw.map(v => {
-      // Solo sumamos los puntos de las que están aprobadas
-      const aprobadas = v.evidencias.filter(e => e.estado === 'aprobado');
+    const vendedoresProcesados = vendedoresRaw.map((v:any) => {
+      // Sumamos el valorPagado real de cada evidencia aprobada
+      const puntosReales = v.evidencias
+        .filter((e:any) => e.estado === 'aprobado')
+        .reduce((acc:any, curr:any) => acc + (Number(curr.valorPagado) || 0), 0);
       
       return {
         ...v,
-        puntosAcumulados: aprobadas.length * 2,
-        // Pasamos todas las evidencias (incluyendo pendientes) al frontend
+        puntosAcumulados: puntosReales,
         evidencias: v.evidencias 
       }
     })
 
-    return vendedoresProcesados.sort((a, b) => b.puntosAcumulados - a.puntosAcumulados)
+    return vendedoresProcesados.sort((a:any, b:any) => b.puntosAcumulados - a.puntosAcumulados)
   } catch (error) {
     console.error("Error en ranking:", error)
     return []

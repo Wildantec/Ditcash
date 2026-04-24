@@ -6,23 +6,22 @@ import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
 import crypto from 'crypto'
 
-// CONFIGURACIÓN CON TIMEOUT EXTENDIDO
+// CONFIGURACIÓN CLOUDINARY
 cloudinary.config({
-  cloud_name: "dtoatm1sc",
-  api_key: "498872921383927",
-  api_secret: "xUkKG2gTUl7khw9K8lOoe1GwI74",
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true
 });
 
 /**
- * REGISTRA EVIDENCIA: Versión por Base64 para evitar Timeout 499
+ * REGISTRA EVIDENCIA: Ahora guarda el valor actual de la campaña
  */
 export async function registrarEvidenciaAction(formData: FormData, campanaId: string) {
   try {
     const file = formData.get('foto') as File
     const clienteNombre = formData.get('cliente_nombre') as string
     
-    // 1. OBTENER EL VENDEDOR REAL DESDE LA SESIÓN (Cookies)
     const cookieStore = await cookies()
     const userId = cookieStore.get('user_id')?.value
     if (!userId) return { error: "No se encontró la sesión del usuario." }
@@ -32,25 +31,26 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     })
     if (!vendedor) return { error: "Vendedor no encontrado." }
 
+    // BUSCAMOS LA CAMPAÑA PARA SABER SU VALOR ACTUAL
+    const campana = await prisma.campana.findUnique({
+        where: { id: parseInt(campanaId) }
+    })
+    if (!campana) return { error: "Campaña no encontrada." }
+
     if (!file || file.size === 0) return { error: "La foto es obligatoria." }
 
-    // 2. GENERAR HASH
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const hash = crypto.createHash('sha256').update(buffer).digest('hex')
 
-    // 3. VALIDACIÓN DE DUPLICADO
     const duplicado = await prisma.evidencia.findUnique({
       where: { imageHash: hash }
     })
 
     if (duplicado) {
-      return { 
-        error: "FRAUDE DETECTADO: Esta imagen ya ha sido utilizada anteriormente." 
-      }
+      return { error: "FRAUDE DETECTADO: Esta imagen ya ha sido utilizada anteriormente." }
     }
 
-    // 4. SUBIR A CLOUDINARY
     const uploadResponse: any = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: 'ditcash_evidencias' },
@@ -62,16 +62,17 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
       uploadStream.end(buffer)
     })
 
-    // 5. GUARDAR CON EL ID CORRECTO
+    // GUARDAMOS CON EL VALOR DE LA CAMPAÑA
     await prisma.evidencia.create({
       data: {
         clienteNombre,
         urlImagen: uploadResponse.secure_url,
         publicId: uploadResponse.public_id,
-        vendedorId: vendedor.id, // <--- CAMBIADO: Ahora usa el ID real del logueado
+        vendedorId: vendedor.id,
         campanaId: parseInt(campanaId),
         estado: 'pendiente',
-        imageHash: hash 
+        imageHash: hash,
+        valorPagado: campana.valor // <--- SE GUARDA EL VALOR DE LA CAMPAÑA (Ej: 5.00)
       }
     })
 
@@ -97,6 +98,7 @@ export async function revisarEvidenciaAction(id: number, aprobado: boolean, moti
     if (!evidencia || evidencia.estado !== 'pendiente') return { error: "No procesable" }
 
     if (aprobado) {
+      // Al aprobar, el saldo del vendedor aumenta según el 'valorPagado' que ya tiene la evidencia
       await prisma.$transaction([
         prisma.evidencia.update({ where: { id }, data: { estado: 'aprobado' } }),
         prisma.vendedor.update({
@@ -119,7 +121,7 @@ export async function revisarEvidenciaAction(id: number, aprobado: boolean, moti
 }
 
 /**
- * GET HISTORIAL VENDEDOR
+ * GET HISTORIAL VENDEDOR (DINÁMICO)
  */
 export async function getHistorialVendedor() {
   try {
@@ -140,13 +142,13 @@ export async function getHistorialVendedor() {
       where: { vendedorId: vendedor.id }
     })
 
-    return campanas.map(c => {
-      // AQUÍ ESTÁ EL CAMBIO: Filtramos por campanaId Y por estado 'aprobado'
-      const aprobadas = evidencias.filter(e => 
+    return campanas.map((c:any) => {
+      const aprobadas = evidencias.filter((e:any) => 
         e.campanaId === c.id && e.estado === 'aprobado'
       )
       
-      const total = aprobadas.length * 2 // Solo suma las aprobadas
+      // CAMBIO: Sumamos los valores reales, ya no multiplicamos por 2
+      const total = aprobadas.reduce((sum:any, e:any) => sum + (Number(e.valorPagado) || 0), 0)
 
       return {
         id: c.id,
@@ -155,7 +157,6 @@ export async function getHistorialVendedor() {
         fecha_cierre: c.fechaFin.toLocaleDateString(),
         estado: c.activa ? 'Activa' : 'Finalizada',
         total_acumulado: total,
-        // Opcional: puedes poner "Pendiente" si hay fotos pero no aprobadas
         puesto: total > 0 ? "Registrado" : "Sin actividad"
       }
     })
@@ -180,7 +181,7 @@ export async function getMisEvidencias(campanaId: number) {
       orderBy: { createdAt: 'desc' }
     })
 
-    return data.map(e => ({
+    return data.map((e:any) => ({
       ...e,
       valorPagado: Number(e.valorPagado),
       createdAt: e.createdAt.toISOString()
@@ -198,7 +199,7 @@ export async function getEvidenciasByVendedor(vendedorId: number) {
       include: { campana: { select: { nombre: true } } },
       orderBy: { createdAt: 'desc' }
     })
-    return data.map(e => ({
+    return data.map((e:any) => ({
       ...e,
       valorPagado: Number(e.valorPagado),
       createdAt: e.createdAt.toISOString()

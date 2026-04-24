@@ -15,7 +15,7 @@ export async function getUsuariosAction() {
       }
     })
 
-    const usuariosLimpios = usuarios.map(u => ({
+    const usuariosLimpios = usuarios.map((u:any) => ({
       ...u,
       vendedor: u.vendedor ? {
         ...u.vendedor,
