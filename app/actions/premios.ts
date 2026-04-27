@@ -204,3 +204,61 @@ export async function eliminarPremioAction(id: number) {
     return { success: false, error: "No se pudo eliminar" }
   }
 }
+
+export async function realizarCanjeAction(vendedorId: number, premioId: number) {
+  try {
+    // 1. Iniciamos una transacción para que el proceso sea atómico
+    const resultado = await prisma.$transaction(async (tx:any) => {
+      
+      // A. Obtener datos del premio y del vendedor
+      const premio = await tx.premio.findUnique({
+        where: { id: premioId }
+      });
+
+      const vendedor = await tx.vendedor.findUnique({
+        where: { id: vendedorId }
+      });
+
+      if (!premio || !vendedor) {
+        throw new Error("Premio o Vendedor no encontrado");
+      }
+
+      // B. Verificar si tiene saldo suficiente
+      if (vendedor.saldo < premio.costo) {
+        throw new Error("Saldo insuficiente para este premio");
+      }
+
+      // C. Crear el registro del canje
+      const nuevoCanje = await tx.canje.create({
+        data: {
+          vendedorId: vendedorId,
+          premioId: premioId,
+          estado: 'pendiente', // O el estado inicial que uses
+          valorCanjeado: premio.costo
+        }
+      });
+
+      // D. RESTAR EL VALOR DEL SALDO DEL VENDEDOR
+      const vendedorActualizado = await tx.vendedor.update({
+        where: { id: vendedorId },
+        data: {
+          saldo: {
+            decrement: premio.costo // Resta automáticamente el costo del premio
+          }
+        }
+      });
+
+      return { nuevoCanje, nuevoSaldo: vendedorActualizado.saldo };
+    });
+
+    // Revalidamos las rutas para que el vendedor vea su nuevo saldo de inmediato
+    revalidatePath('/dashboard/vendedor');
+    revalidatePath('/dashboard/admin/canjes');
+
+    return { success: true, saldoActual: resultado.nuevoSaldo };
+
+  } catch (error: any) {
+    console.error("Error en el canje:", error.message);
+    return { error: error.message || "Error al procesar el canje" };
+  }
+}

@@ -82,7 +82,7 @@ export default async function AdminDashboard() {
           </div>
         </Link>
 
-        <Link href="/dashboard/admin/campanas" className="block group">
+        <Link href="/dashboard/admin/vendedores" className="block group">
           <div className={`p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-sm border transition-all duration-500 flex items-center justify-between ${pendientesTotal > 0 ? 'bg-orange-50 border-orange-200 shadow-orange-100' : 'bg-white border-slate-50'}`}>
             <div className="flex items-center gap-4 md:gap-6">
               <div className={`w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center text-2xl md:text-3xl ${pendientesTotal > 0 ? 'bg-orange-500 text-white animate-pulse' : 'bg-orange-50'}`}>
