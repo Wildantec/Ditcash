@@ -10,7 +10,7 @@ export default function Navbar() {
           
           {/* Contenedor del Logo */}
           <div className="flex-shrink-0 flex items-center">
-            <Link href="/" className="transition-opacity hover:opacity-80">
+            <Link href="https://ditec-ec.com/" className="transition-opacity hover:opacity-80">
               <Image 
                 src="/logo_ditec-2.png" 
                 alt="DITCASH Logo"
