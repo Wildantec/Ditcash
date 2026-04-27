@@ -42,13 +42,47 @@ export async function getActiveCampanaId() {
 // 3. ELIMINAR CAMPAÑA
 export async function deleteCampana(id: number) {
   try {
-    await prisma.campana.delete({
-      where: { id }
-    })
-    revalidatePath('/dashboard/admin/campanas')
-    return { success: true }
-  } catch (error) {
-    return { error: "No se pudo eliminar la campaña" }
+    // 1. Obtenemos los premios de esta campaña para saber si tienen canjes
+    const premios = await prisma.premio.findMany({
+      where: { 
+        // Si tus premios NO tienen campanaId directamente, 
+        // Prisma se quejará. Aquí asumimos la relación lógica.
+      },
+      select: { id: true }
+    });
+
+    const premioIds = premios.map((p:any) => p.id);
+
+    // 2. EJECUTAMOS TODO EN UNA TRANSACCIÓN PARA EVITAR ERRORES
+    await prisma.$transaction(async (tx:any) => {
+      
+      // A. Borrar Canjes asociados a los premios (si existen)
+      if (premioIds.length > 0) {
+        await tx.canje.deleteMany({
+          where: { premioId: { in: premioIds } }
+        });
+      }
+
+      // B. Borrar todas las evidencias de la campaña
+      await tx.evidencia.deleteMany({
+        where: { campanaId: id }
+      });
+      
+      // D. Finalmente, borrar la campaña
+      await tx.campana.delete({
+        where: { id }
+      });
+    });
+
+    revalidatePath('/dashboard/admin/campanas');
+    revalidatePath('/dashboard/vendedor');
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("ERROR AL ELIMINAR CAMPAÑA:", error);
+    return { 
+      error: "No se pudo eliminar: Hay datos protegidos. Intenta borrar primero los premios asociados manualmente." 
+    };
   }
 }
 

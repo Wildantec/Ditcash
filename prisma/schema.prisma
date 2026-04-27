@@ -31,11 +31,12 @@ model Vendedor {
   nombre           String
   apellido         String?
   puntosAcumulados Decimal     @default(0.00) @db.Decimal(10, 2)
+  saldoGastado     Decimal     @default(0.00) @db.Decimal(10, 2)
   activo           Boolean     @default(true)
   usuarioId        Int?        @unique
   usuario          User?       @relation(fields: [usuarioId], references: [id])
   evidencias       Evidencia[]
-  canjes           Canje[]     // <--- AGREGA ESTA LÍNEA (Es la que faltaba)
+  canjes           Canje[]     
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
@@ -52,7 +53,7 @@ model Campana {
   createdAt   DateTime    @default(now())
   urlImagen   String?
   valor Float @default(0)
-  @@map("campanas") // El nombre de la tabla en MySQL sí puede llevar 's' al final
+  @@map("campanas") 
 }
 
 model Evidencia {
@@ -66,8 +67,8 @@ model Evidencia {
   campana        Campana  @relation(fields: [campanaId], references: [id])
   valorPagado    Float    @default(2.00)
   estado         String   @default("pendiente") // pendiente, aprobado, rechazado
-  motivoRechazo  String?  // <--- Agrega esta línea
-  imageHash     String?  @unique // <--- Esto evita que el mismo hash se guarde dos veces
+  motivoRechazo  String?  
+  imageHash     String?  @unique 
   createdAt      DateTime @default(now())
 }
 model Premio {
@@ -80,7 +81,7 @@ model Premio {
   stock       Int      @default(1)
   activo      Boolean  @default(true)
   reservado   Boolean  @default(false)
-  canjes      Canje[]  // Esta ya la tenías, está bien
+  canjes      Canje[] 
   createdAt   DateTime @default(now())
 }
 model Canje {

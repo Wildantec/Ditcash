@@ -5,9 +5,9 @@ import { v2 as cloudinary } from 'cloudinary'
 import { cookies } from 'next/headers'
 
 cloudinary.config({
-  cloud_name: "dtoatm1sc",
-  api_key: "498872921383927",
-  api_secret: "xUkKG2gTUl7khw9K8lOoe1GwI74",
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true
 });
 
@@ -126,24 +126,52 @@ export async function gestionarCanjeAction(canjeId: number, aprobado: boolean) {
     if (!canje) return { error: "Canje no encontrado" }
 
     if (aprobado) {
-      // Si se aprueba: El premio queda inactivo definitivamente y el canje aprobado
+      // Usamos una transacción para asegurar que todo pase o nada pase
       await prisma.$transaction([
-        prisma.canje.update({ where: { id: canjeId }, data: { estado: 'aprobado' } }),
-        prisma.premio.update({ where: { id: canje.premioId }, data: { activo: false } })
+        // 1. Marcamos el canje como aprobado
+        prisma.canje.update({ 
+          where: { id: canjeId }, 
+          data: { estado: 'aprobado' } 
+        }),
+        // 2. Desactivamos el premio para que ya no exista en el catálogo
+        prisma.premio.update({ 
+          where: { id: canje.premioId }, 
+          data: { activo: false, reservado: true } 
+        }),
+        // 3. Incrementamos el saldo gastado del vendedor
+        prisma.vendedor.update({
+          where: { id: canje.vendedorId },
+          data: { 
+            saldoGastado: { 
+              increment: canje.premio.puntos // Prisma maneja el incremento automáticamente
+            } 
+          }
+        })
       ])
     } else {
-      // Si se rechaza: El premio vuelve a estar disponible (no reservado)
+      // Si se rechaza el canje
       await prisma.$transaction([
-        prisma.canje.update({ where: { id: canjeId }, data: { estado: 'rechazado' } }),
-        prisma.premio.update({ where: { id: canje.premioId }, data: { reservado: false } })
+        // 1. Marcamos el canje como rechazado
+        prisma.canje.update({ 
+          where: { id: canjeId }, 
+          data: { estado: 'rechazado' } 
+        }),
+        // 2. Liberamos el premio para que otros lo puedan ver/canjear
+        prisma.premio.update({
+          where: { id: canje.premioId },
+          data: { reservado: false, activo: true }
+        })
       ])
     }
 
-    revalidatePath('/dashboard/admin/premios')
+    revalidatePath('/dashboard/vendedor')
+    revalidatePath('/dashboard/admin/canjes')
     revalidatePath('/dashboard/vendedor/premios')
+    
     return { success: true }
-  } catch (error) {
-    return { error: "Error al gestionar el canje" }
+  } catch (error: any) {
+    console.error("ERROR EN GESTIONAR CANJE:", error)
+    return { error: "No se pudo procesar: verifica que el vendedor tenga el campo saldoGastado." }
   }
 }
 

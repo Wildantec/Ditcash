@@ -11,21 +11,23 @@ export default async function VendedorDashboard() {
 
   const userId = parseInt(userIdRaw)
 
-  // 1. Datos del Vendedor
+  // 1. Datos del Vendedor (Traemos el nuevo campo saldoGastado)
   const vendedor = await prisma.vendedor.findUnique({
     where: { usuarioId: userId }
   })
 
   if (!vendedor) return <div className="p-20 text-center font-black uppercase tracking-widest text-slate-400">Perfil no detectado</div>
 
-  // 2. Saldo Real del Usuario Logueado (Suma dinámica de sus evidencias)
+  // 2. Saldo Real (Calculamos: Suma de evidencias - Saldo Gastado)
   const stats = await prisma.evidencia.aggregate({
     where: { vendedorId: vendedor.id, estado: 'aprobado' },
     _sum: { valorPagado: true },
     _count: { id: true }
   })
 
-  const saldo = Number(stats._sum.valorPagado || 0)
+  const ganadoTotal = Number(stats._sum.valorPagado || 0)
+  const gastadoTotal = Number(vendedor.saldoGastado || 0) // <--- Valor del nuevo campo en Prisma
+  const saldo = ganadoTotal - gastadoTotal // <--- Este es el valor que se mostrará
   const totalAprobadas = stats._count.id
 
   // 3. Catálogo y Meta Próxima
@@ -38,7 +40,7 @@ export default async function VendedorDashboard() {
   const metaPremio = proximoPremio ? Number(proximoPremio.puntos) : 100;
   const progresoPremio = Math.min((saldo / metaPremio) * 100, 100);
 
-  // 4. RANKING DINÁMICO (Calculamos la suma real para el Top 3)
+  // 4. RANKING DINÁMICO (Restamos el gasto de cada uno)
   const vendedoresRaw = await prisma.vendedor.findMany({
     include: {
       evidencias: {
@@ -52,7 +54,7 @@ export default async function VendedorDashboard() {
     .map((v: any) => ({
       id: v.id,
       nombre: v.nombre,
-      puntosReales: v.evidencias.reduce((acc: any, curr: any) => acc + Number(curr.valorPagado || 0), 0)
+      puntosReales: v.evidencias.reduce((acc: any, curr: any) => acc + Number(curr.valorPagado || 0), 0) - Number(v.saldoGastado || 0)
     }))
     .sort((a: any, b: any) => b.puntosReales - a.puntosReales)
     .slice(0, 3)
@@ -157,7 +159,7 @@ export default async function VendedorDashboard() {
           </section>
         </div>
 
-        {/* COLUMNA DE RANKING TOP (CORREGIDO PARA MOSTRAR DECIMALES) */}
+        {/* COLUMNA DE RANKING TOP */}
         <div className="lg:col-span-4">
           <div className="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 shadow-xl border border-slate-50 lg:sticky lg:top-10">
             <h3 className="text-lg md:text-xl font-black uppercase tracking-[0.2em] mb-8 md:mb-10 pb-4 border-b border-slate-100 italic text-center lg:text-left">Top DitCash</h3>

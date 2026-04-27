@@ -26,34 +26,30 @@ export async function getVendedorByUsuarioId(usuarioId: number) {
 export async function getSaldoVendedorAction() {
   try {
     const cookieStore = await cookies()
-    const userIdRaw = cookieStore.get('user_id')?.value
-
-    if (!userIdRaw) return 0
-
-    const userId = parseInt(userIdRaw)
+    const userId = cookieStore.get('user_id')?.value
+    if (!userId) return 0
 
     const vendedor = await prisma.vendedor.findUnique({
-      where: { usuarioId: userId },
-      select: { id: true }
+      where: { usuarioId: parseInt(userId) },
+      include: {
+        evidencias: {
+          where: { estado: 'aprobado' },
+          select: { valorPagado: true }
+        }
+      }
     })
 
     if (!vendedor) return 0
 
-    // Sumamos directamente los valores de la columna valorPagado de la BD
-    const agregado = await prisma.evidencia.aggregate({
-      where: {
-        vendedorId: vendedor.id,
-        estado: 'aprobado'
-      },
-      _sum: {
-        valorPagado: true
-      }
-    })
-
-    return agregado._sum.valorPagado || 0
-
+    // SUMAMOS LO GANADO
+    const ganado = vendedor.evidencias.reduce((acc:any, ev:any) => acc + Number(ev.valorPagado || 0), 0)
+    
+    // RESTAMOS LO GASTADO (Asegúrate de que el campo saldoGastado esté en tu esquema)
+    const gastado = Number(vendedor.saldoGastado || 0)
+    
+    return ganado - gastado // <--- Esto devolverá tus $11.50 reales
   } catch (error) {
-    console.error("Error al obtener saldo del vendedor:", error)
+    console.error("Error al calcular saldo:", error)
     return 0
   }
 }
