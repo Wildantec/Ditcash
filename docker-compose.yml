@@ -12,6 +12,12 @@ services:
       - ditcash_mysql_data:/var/lib/mysql
     ports:
       - "3307:3306"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   app-ditcash:
     build: .
@@ -21,15 +27,24 @@ services:
       - db-ditcash
     environment:
       DATABASE_URL: "mysql://root:Wildantec2026@db-ditcash:3306/ditcash_db"
-    # --- CAMBIOS PARA TIEMPO REAL ---
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
-    # --------------------------------
+      NODE_ENV: production  # Optimiza Next.js para un entorno de producción
+    # --- VOLÚMENES DE DESARROLLO (COMENTADOS PARA ESTABILIDAD) ---
+    # volumes:
+    #   - .:/app              # Sincroniza archivos locales (consume mucha RAM)
+    #   - /app/node_modules   # Evita sobreescribir librerías del contenedor
+    #   - /app/.next          # Evita conflictos con la compilación local
+    # -------------------------------------------------------------
     ports:
       - "3001:3000"
-    command: npm run dev # <-- Cambiado a modo desarrollo
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 512M
+    # --- COMANDO DE EJECUCIÓN ---
+    # command: npm run dev  # Solo para desarrollo (compila en tiempo real)
+    command: npm start      # Ejecuta la versión compilada y ligera (Producción)
 
 volumes:
   ditcash_mysql_data:
