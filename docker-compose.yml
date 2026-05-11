@@ -39,9 +39,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1024M
+          memory: 1.5G
         reservations:
-          memory: 512M
+          memory: 256M
     # --- COMANDO DE EJECUCIÓN ---
     # command: npm run dev  # Solo para desarrollo (compila en tiempo real)
     command: npm start      # Ejecuta la versión compilada y ligera (Producción)
