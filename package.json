@@ -27,8 +27,8 @@
     "@tailwindcss/postcss": "^4.2.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.19.39",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.5.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
@@ -39,6 +39,6 @@
     "typescript": "^5"
   },
   "prisma": {
-  "seed": "tsx prisma/seed.ts"
-}
+    "seed": "tsx prisma/seed.ts"
+  }
 }

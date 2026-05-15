@@ -1,7 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"] // Añade esto
-  engineType      = "library"          // Y añade esto también
+  previewFeatures = ["driverAdapters"]
+  engineType      = "library"
 }
 
 datasource db {
@@ -11,11 +11,11 @@ datasource db {
 
 model User {
   id        Int      @id @default(autoincrement())
-  username  String   @unique
+  username  String   @unique // Para clientes guardaremos su cédula aquí también
   cedula    String   @unique
   password  String
   nombre    String?
-  rol       String   @default("VENDEDOR")
+  rol       String   @default("CLIENTE") // Cambiado a CLIENTE por defecto para los nuevos registros dinámicos
   estado    String   @default("Activo")
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -42,6 +42,7 @@ model Vendedor {
 
   @@map("vendedores")
 }
+
 model Campana {
   id          Int         @id @default(autoincrement())
   nombre      String
@@ -52,25 +53,26 @@ model Campana {
   evidencias  Evidencia[]
   createdAt   DateTime    @default(now())
   urlImagen   String?
-  valor Float @default(0)
+  valor       Float       @default(0)
   @@map("campanas") 
 }
 
 model Evidencia {
-  id             Int      @id @default(autoincrement())
-  urlImagen      String
-  publicId       String
-  clienteNombre  String
-  vendedorId     Int
-  vendedor       Vendedor @relation(fields: [vendedorId], references: [id])
-  campanaId      Int
-  campana        Campana  @relation(fields: [campanaId], references: [id])
-  valorPagado    Float    @default(2.00)
-  estado         String   @default("pendiente") // pendiente, aprobado, rechazado
-  motivoRechazo  String?  
+  id            Int      @id @default(autoincrement())
+  urlImagen     String
+  publicId      String
+  clienteNombre String
+  vendedorId    Int
+  vendedor      Vendedor @relation(fields: [vendedorId], references: [id])
+  campanaId     Int
+  campana       Campana  @relation(fields: [campanaId], references: [id])
+  valorPagado   Float    @default(2.00)
+  estado        String   @default("pendiente") // pendiente, aprobado, rechazado
+  motivoRechazo String?  
   imageHash     String?  @unique 
-  createdAt      DateTime @default(now())
+  createdAt     DateTime @default(now())
 }
+
 model Premio {
   id          Int      @id @default(autoincrement())
   nombre      String
@@ -81,15 +83,16 @@ model Premio {
   stock       Int      @default(1)
   activo      Boolean  @default(true)
   reservado   Boolean  @default(false)
-  canjes      Canje[] 
+  canjes      Canje[]  
   createdAt   DateTime @default(now())
 }
+
 model Canje {
-  id          Int      @id @default(autoincrement())
-  vendedorId  Int
-  premioId    Int
-  vendedor    Vendedor @relation(fields: [vendedorId], references: [id])
-  premio      Premio   @relation(fields: [premioId], references: [id])
-  estado      String   @default("pendiente") 
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  vendedorId Int
+  premioId   Int
+  vendedor   Vendedor @relation(fields: [vendedorId], references: [id])
+  premio     Premio   @relation(fields: [premioId], references: [id])
+  estado     String   @default("pendiente") 
+  createdAt  DateTime @default(now())
 }
