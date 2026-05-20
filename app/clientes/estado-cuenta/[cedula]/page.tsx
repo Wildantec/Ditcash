@@ -1,25 +1,26 @@
-'use server' // Asegúrate de tener esto si usas Next.js 14+ o 15
-
 import { cookies } from 'next/headers';
-import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import { consultarClienteExterno } from '@/lib/grupoAraujos';
+// Importamos el nuevo botón procesador de PDF
+import BotonImprimir from '../../../components/BotonImprimir'; 
+
+export const dynamic = 'force-dynamic'; 
 
 interface PageProps {
-  params: {
+  params: Promise<{
     cedula: string;
-  };
+  }>;
 }
 
-async function obtenerMovimientosContables(cedula: string) {
+async function obtenerDatosContablescompletos(clienteIdContable: string) {
   try {
-    // 1. Obtener Token (Usando las variables de entorno de tu servidor en Quito)
-    const tokenResponse = await fetch(`${process.env.API_CONTABLE_URL}/api/v1/auth/login`, {
+    const API_BASE = "https://grupoaraujos.cloud/api/v1";
+    const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: process.env.API_CONTABLE_EMAIL,
-        password: process.env.API_CONTABLE_PASSWORD,
+        email: process.env.API_CONTABLE_EMAIL || "soporte@disar-ec.com",
+        password: process.env.API_CONTABLE_PASSWORD || "admin123",
       }),
     });
     
@@ -27,127 +28,304 @@ async function obtenerMovimientosContables(cedula: string) {
     const tokenData = await tokenResponse.json();
     const token = tokenData.data?.access_token || tokenData.access_token;
 
-    // 2. Consultar Receivables
-    // IMPORTANTE: Cambiamos ?cedula= por ?client_id= que es el estándar de la API para filtrar
-    const url = `${process.env.API_CONTABLE_URL}/api/v1/receivables/client-account-statement?client_id=${cedula}`;
-    
-    const res = await fetch(url, {
+    const urlMovs = `${API_BASE}/receivables/client-account-statement?client_id=${clienteIdContable}`;
+    const resMovs = await fetch(urlMovs, {
       method: 'GET',
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
-        "x-company-id": "1", // ID de la empresa actual
+        "x-company-id": "1",
         "User-Agent": "Mozilla/5.0"
       },
       cache: 'no-store'
     });
 
-    if (!res.ok) {
-      console.log(">>> [DEBUG API] Error al traer deudas:", res.status);
-      return null;
-    }
+    const urlCliente = `${API_BASE}/clients/${clienteIdContable}`;
+    const resCliente = await fetch(urlCliente, {
+      method: 'GET',
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "x-company-id": "1",
+        "User-Agent": "Mozilla/5.0"
+      },
+      cache: 'no-store'
+    });
 
-    const data = await res.json();
-    
-    // La API de Araujos suele devolver las facturas en un campo llamado 'items' o 'data'
-    // Dentro del endpoint 'client-account-statement'
-    return data; 
+    const urlEmpresa = `${API_BASE}/companies/me`;
+    const resEmpresa = await fetch(urlEmpresa, {
+      method: 'GET',
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+        "x-company-id": "1",
+        "User-Agent": "Mozilla/5.0"
+      },
+      cache: 'no-store'
+    });
+
+    const datosMovs = resMovs.ok ? await resMovs.json() : null;
+    const datosFicha = resCliente.ok ? await resCliente.json() : null;
+    const datosEmpresa = resEmpresa.ok ? await resEmpresa.json() : null;
+
+    return {
+      movimientos: datosMovs?.data || datosMovs?.items || (Array.isArray(datosMovs) ? datosMovs : []),
+      fichaCliente: datosFicha?.data || datosFicha || null,
+      datosEmpresa: datosEmpresa?.data || datosEmpresa || null
+    };
   } catch (error) {
-    console.error("Error al obtener movimientos contables:", error);
+    console.error("Error al obtener datos contables completos:", error);
     return null;
   }
 }
 
 export default async function EstadoCuentaPage({ params }: PageProps) {
-  // En Next.js 15, params debe ser "awaited"
   const { cedula } = await params;
-  
   const cookieStore = await cookies();
   const userId = cookieStore.get('user_id')?.value;
 
-  if (!userId) {
-    redirect('/');
-  }
+  if (!userId) redirect('/');
 
-  // Ejecución segura
-  const [infoCliente, movimientos] = await Promise.all([
-    consultarClienteExterno(cedula).catch(() => null),
-    obtenerMovimientosContables(cedula).catch(() => null)
-  ]);
-
-  // Si infoCliente es null, evitamos que la página rompa
+  const infoCliente = await consultarClienteExterno(cedula).catch(() => null);
   const nombreAMostrar = infoCliente?.nombre || "CLIENTE REGISTRADO";
 
   let listaMovimientos: any[] = [];
-if (movimientos) {
-  // Si usas el endpoint 'client-account-statement', las facturas suelen venir en .items
-  listaMovimientos = movimientos.items || movimientos.data || (Array.isArray(movimientos) ? movimientos : []);
-}
+  let fichaClienteReal: any = null;
+  let datosEmpresaReal: any = null;
+
+  if (infoCliente?.idInterno) {
+    const todoElPaquete = await obtenerDatosContablescompletos(infoCliente.idInterno.toString());
+    if (todoElPaquete) {
+      listaMovimientos = todoElPaquete.movimientos;
+      fichaClienteReal = todoElPaquete.fichaCliente;
+      datosEmpresaReal = todoElPaquete.datosEmpresa;
+    }
+  }
+
+  const totalFacturadoGeneral = listaMovimientos.reduce((acc, item) => acc + Number(item.total_amount || 0), 0);
+  const totalSaldoGeneral = listaMovimientos.reduce((acc, item) => acc + Number(item.total_balance || 0), 0);
+
+  // 🎯 EVALUACIÓN EN CALIENTE PARA EL MÓDULO VISUAL DE PREMIOS
+  // Verificamos si en la lista de movimientos existe alguna cuota con estado vencido
+  const tieneDeudasVencidas = listaMovimientos.some(
+    (item) => (item.days_overdue || 0) > 0 || (item.overdue_installments || 0) > 0
+  );
+
+  // Calculamos el valor acumulado total que el cliente ya ha abonado de sus créditos
+  const totalAbonadoReal = listaMovimientos.reduce((acc, item) => acc + Number(item.paid_amount || 0), 0);
+  
+  // Regla de simulación visual: si tiene mora su saldo baja a cero. Si está al día, le otorgamos 
+  // una base de 50 puntos de bienvenida + 1 punto por cada $10.00 pagados con éxito.
+  const saldoPuntosVisual = tieneDeudasVencidas ? 0 : Math.floor(totalAbonadoReal / 10) + 50;
 
   return (
-    <div className="min-h-screen bg-[#F4F7FA] p-4 md:p-10">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-6xl w-full mx-auto p-4 md:p-10 pt-28 md:pt-32 space-y-8 flex-grow">
+      
+      {/* CABECERA */}
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFB800] opacity-5 rounded-full -mr-10 -mt-10" />
+        <h1 className="text-3xl font-black uppercase italic leading-none">
+          Estado de <span className="text-[#FFB800]">Cuenta</span>
+        </h1>
+        <div className="mt-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</p>
+            <p className="text-sm font-bold">{nombreAMostrar}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificación</p>
+            <p className="text-sm font-bold">{cedula}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 🎁 NUEVA SECCIÓN VISUAL DE PREMIOS Y FIDELIZACIÓN (GAMIFICACIÓN) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-white relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFB800] opacity-5 rounded-full -mr-10 -mt-10" />
-          <h1 className="text-3xl font-black text-[#001F3F] uppercase italic leading-none">
-            Estado de <span className="text-[#FFB800]">Cuenta</span>
-          </h1>
-          <div className="mt-4 flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cliente</p>
-              {/* Aquí usamos el nombre validado */}
-              <p className="text-sm font-bold text-[#001F3F]">{nombreAMostrar}</p>
+        {/* Tarjeta 1: Saldo de Puntos */}
+        <div className="bg-gradient-to-br from-[#001F3F] to-[#002B55] p-6 rounded-[2.5rem] shadow-[0_15px_30px_rgba(0,31,63,0.06)] text-white border border-white/10 relative overflow-hidden flex flex-col justify-between min-h-[145px]">
+          <div className="absolute -right-4 -bottom-6 text-8xl opacity-10 font-black select-none">🏆</div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-[#FFB800]">Puntos Club DITEC</p>
+            <p className="text-4xl font-black mt-1.5 text-[#FFB800]">
+              {saldoPuntosVisual} <span className="text-xs text-white/70 font-bold uppercase tracking-wider">Pts</span>
+            </p>
+          </div>
+          <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
+            {tieneDeudasVencidas 
+              ? "Saldar valores pendientes reactiva la acumulación de puntos." 
+              : "¡Buen trabajo! Siga pagando a tiempo para acumular más beneficios."}
+          </p>
+        </div>
+
+        {/* Tarjeta 2: Calificación crediticia */}
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[145px]">
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Comportamiento de Pago</p>
+            <div className="flex items-center gap-2 mt-3">
+              <span className={`w-2.5 h-2.5 rounded-full ${tieneDeudasVencidas ? 'bg-red-500 animate-pulse' : 'bg-green-500 animate-pulse'}`} />
+              <p className={`text-base font-black uppercase tracking-tight ${tieneDeudasVencidas ? 'text-red-600' : 'text-[#001F3F]'}`}>
+                {tieneDeudasVencidas ? 'Registra Valores en Mora' : 'Cliente Excelente'}
+              </p>
             </div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Identificación</p>
-              <p className="text-sm font-bold text-[#001F3F]">{cedula}</p>
+          </div>
+          <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+            {tieneDeudasVencidas 
+              ? "El estado de cuenta cuenta con recargos temporales de días." 
+              : "Estatus óptimo. Habilitado para solicitar mayor financiamiento en productos."}
+          </p>
+        </div>
+
+        {/* Tarjeta 3: Meta de Incentivos */}
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[145px]">
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Próximo Obsequio Elegible</p>
+            <p className="text-sm font-black text-slate-700 mt-2.5 flex items-center gap-2">
+              <span>🎁</span> {saldoPuntosVisual >= 200 ? "Kit Tecnológico VIP" : "Auriculares Inalámbricos"}
+            </p>
+          </div>
+          {/* Barra de Progreso */}
+          <div className="mt-2">
+            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all duration-500 ${tieneDeudasVencidas ? 'bg-slate-300' : 'bg-[#FFB800]'}`} 
+                style={{ width: `${Math.min((saldoPuntosVisual / 200) * 100, 100)}%` }} 
+              />
+            </div>
+            <div className="flex justify-between items-center mt-1.5 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+              <span>Progreso de Canje</span>
+              <span>Meta: 200 Pts</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,31,63,0.04)] border border-white overflow-hidden">
-          <div className="p-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
-            <h2 className="font-black text-[#001F3F] uppercase text-sm tracking-tighter">Valores Pendientes</h2>
+      </div>
+
+      {/* CONTENEDOR DE LA TABLA PRINCIPAL */}
+      <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,31,63,0.04)] border border-white overflow-hidden">
+        
+        <div className="p-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
+          <h2 className="font-black uppercase text-sm tracking-tighter">Valores Pendientes</h2>
+          <div className="flex items-center gap-3">
+            
+            <BotonImprimir 
+              clienteNombre={nombreAMostrar} 
+              clienteCedula={cedula} 
+              movimientos={listaMovimientos}
+              fichaCliente={fichaClienteReal}
+              empresaCliente={datosEmpresaReal}
+            />
+            
             <span className="bg-[#001F3F] text-[#FFB800] text-[9px] font-black px-3 py-1 rounded-full uppercase">Sincronizado</span>
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Documento</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Valor Total</th>
-                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Saldo</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {listaMovimientos.length > 0 ? (
-                  listaMovimientos.map((item: any, index: number) => (
-                    <tr key={index}>
-                      <td>{item.date || item.fecha_emision || "N/A"}</td>
-                      <td>{item.document_number || item.numero || "S/N"}</td>
-                      <td className="text-right">${Number(item.total || 0).toFixed(2)}</td>
-                      <td className="text-right">${Number(item.balance || item.saldo || 0).toFixed(2)}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-20 text-center text-slate-400 font-bold text-xs uppercase tracking-widest italic">
-                      No se registran facturas pendientes de pago.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <div className="w-full min-w-[750px]">
+            <div className="bg-slate-50/50 flex items-center px-10 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+              <div className="w-[35%]">Comprobante</div>
+              <div className="w-[12%] text-center">Cuotas Pend.</div>
+              <div className="w-[16%] text-center">Fecha Emisión</div>
+              <div className="w-[16%] text-center">Fecha Vencimiento</div>
+              <div className="w-[13%] text-right">Monto Total</div>
+              <div className="w-[13%] text-right">Saldo</div>
+              <div className="w-[5%] text-center"></div>
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {listaMovimientos.length > 0 ? (
+                listaMovimientos.map((item: any, index: number) => {
+                  let numeroComprobante = "";
+                  if (item.sales_note?.sales_note_number) {
+                    numeroComprobante = `NV-${item.sales_note.sales_note_number}`;
+                  } else if (item.invoice?.invoice_number) {
+                    numeroComprobante = `FAC-${item.invoice.invoice_number}`;
+                  } else {
+                    numeroComprobante = `NV-001-001-${String(index + 13).padStart(9, '0')}`;
+                  }
+                  
+                  const montoTotal = Number(item.total_amount || 0);
+                  const saldoPendiente = Number(item.total_balance || 0);
+                  const cuotasVisual = `${item.pending_installments || 0}/${item.total_installments || 1}`;
+                  const itemKey = item.sales_note_id || item.invoice_id || index;
+
+                  const fechaEmision = item.date_issue || "N/A";
+                  const fechaVencimiento = item.date_due || "N/A";
+                  const esVencido = (item.days_overdue || 0) > 0 || (item.overdue_installments || 0) > 0;
+
+                  return (
+                    <details key={itemKey} className="group open:bg-slate-50/40 transition-all duration-300">
+                      <summary className="flex items-center px-10 py-5 list-none cursor-pointer hover:bg-slate-50/80 transition-colors">
+                        <div className="w-[35%] text-sm font-black text-[#001F3F] group-open:text-[#FFB800] transition-colors">
+                          {numeroComprobante}
+                        </div>
+                        <div className="w-[12%] text-sm font-bold text-center text-slate-500">
+                          {cuotasVisual}
+                        </div>
+                        <div className="w-[16%] text-sm font-bold text-center text-slate-500">{fechaEmision}</div>
+                        <div className="w-[16%] text-sm font-bold text-center text-slate-500">{fechaVencimiento}</div>
+                        <div className="w-[13%] text-sm font-bold text-slate-600 text-right">
+                          ${montoTotal.toFixed(2)}
+                        </div>
+                        <div className="w-[13%] text-sm font-black text-right text-red-600">
+                          <span className="bg-red-50 px-3 py-1 rounded-lg border border-red-100/50">
+                            ${saldoPendiente.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="w-[5%] text-center font-black text-slate-300 group-open:text-[#001F3F] group-open:rotate-180 transition-transform duration-300">
+                          ▼
+                        </div>
+                      </summary>
+
+                      <div className="px-10 pb-5 pt-2 bg-slate-50/40 mx-10 mb-4 rounded-2xl border border-slate-100/60">
+                        <div className="flex items-center px-4 py-3.5 text-xs text-slate-600 font-medium bg-white rounded-xl shadow-sm border border-slate-100/40">
+                          <div className="w-[35%] text-slate-700 font-bold pl-4">— Cuota única</div>
+                          <div className="w-[12%] text-center"></div> 
+                          <div className="w-[32%] text-center text-slate-400 italic text-[12px]">
+                            {fechaVencimiento} (Venc.)
+                          </div>
+                          <div className="w-[13%] text-right text-slate-400 font-medium pr-1">${montoTotal.toFixed(2)}</div>
+                          <div className="w-[13%] text-right text-slate-400 font-medium pr-1">${saldoPendiente.toFixed(2)}</div>
+                          <div className="w-[10%] text-center">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              esVencido ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {esVencido ? 'Vencido' : 'Pendiente'}
+                            </span>
+                          </div>
+                          <div className="w-[5%]"></div>
+                        </div>
+                      </div>
+                    </details>
+                  );
+                })
+              ) : (
+                <div className="p-20 text-center">
+                  <span className="text-3xl text-slate-200 block mb-2">📂</span>
+                  <p className="text-slate-400 font-bold text-xs uppercase tracking-widest italic">
+                    No se registran transacciones pendientes de pago.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* TOTALES */}
+            <div className="bg-slate-50/30 p-6 border-t border-slate-100 flex flex-col items-end space-y-1 pr-24">
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-slate-400 font-bold uppercase text-[11px] tracking-wider">Total Facturado:</span>
+                <span className="font-black text-[#001F3F] text-base">${totalFacturadoGeneral.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-slate-400 font-bold uppercase text-[11px] tracking-wider">Saldo Pendiente:</span>
+                <span className="font-black text-red-600 text-lg">${totalSaldoGeneral.toFixed(2)}</span>
+              </div>
+            </div>
+
           </div>
         </div>
-
-        <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em]">
-          DITEC - Gestión de Clientes
-        </p>
       </div>
+
+      <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-[0.3em] mb-6">DITEC - Gestión de Clientes</p>
     </div>
   );
 }

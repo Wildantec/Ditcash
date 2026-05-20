@@ -19,48 +19,63 @@ async function obtenerTokenContable() {
   }
 }
 
-export async function consultarClienteExterno(cedula: string) {
-  const cedulaLimpia = cedula.trim();
-  
-  try {
-    const token = await obtenerTokenContable();
-    if (!token) return null;
+// En tu archivo src/lib/grupoAraujos.ts (o donde tengas la función)
 
-    const url = `${API_BASE}/clients?identification=${cedulaLimpia}&size=1`;
+export async function consultarClienteExterno(cedula: string) {
+  try {
+    const API_BASE = "https://grupoaraujos.cloud/api/v1";
     
-    const response = await fetch(url, {
+    // 1. Login para obtener el token activo
+    const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: process.env.API_CONTABLE_EMAIL || "soporte@disar-ec.com",
+        password: process.env.API_CONTABLE_PASSWORD || "admin123",
+      }),
+    });
+    
+    if (!tokenResponse.ok) return null;
+    const tokenData = await tokenResponse.json();
+    const token = tokenData.data?.access_token || tokenData.access_token;
+
+    // 🎯 LA SOLUCIÓN: Pasarle el query de búsqueda de identificación en la URL
+    // Dependiendo de tu Swagger, suele ser ?search=${cedula} o ?identification=${cedula}
+    const url = `${API_BASE}/clients?search=${cedula}&size=1`;
+    
+    const res = await fetch(url, {
       method: 'GET',
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${token}`,
-        "x-company-id": "1", 
+        "x-company-id": "1",
         "User-Agent": "Mozilla/5.0"
       },
       cache: 'no-store'
     });
 
-    const resData = await response.json();
-    const lista = resData.data || [];
-    const cliente = Array.isArray(lista) ? lista[0] : lista;
+    if (!res.ok) return null;
+    const dataJSON = await res.json();
 
-    if (!cliente) {
-      console.log(`>>> [LOG SERVIDOR] Cliente ${cedulaLimpia} no encontrado.`);
+    // Como la API devuelve un array filtrado en .data o .items, extraemos el primero
+    const listaClientes = dataJSON.data || dataJSON.items || (Array.isArray(dataJSON) ? dataJSON : []);
+    
+    if (listaClientes.length === 0) {
+      console.log(`>>> [LOG SERVIDOR] Cédula ${cedula} no arrojó resultados filtrados en Araujos.`);
       return null;
     }
 
-    // --- CORRECCIÓN AQUÍ: Validación "anti-crash" ---
-    // Usamos encadenamiento opcional ?. y un fallback "" para que trim() nunca falle
-    const nombreCrudo = cliente.full_name || cliente.name || "CLIENTE REGISTRADO";
-    const nombreReal = String(nombreCrudo).trim().toUpperCase();
+    // Buscamos coincidencia exacta por si acaso
+    const clienteEncontrado = listaClientes.find((c: any) => c.identification === cedula) || listaClientes[0];
 
-    console.log(">>> [LOG SERVIDOR] ¡CLIENTE ENCONTRADO!:", nombreReal);
-
-    return { 
-      nombre: nombreReal, 
-      existe: true 
+    return {
+      idInterno: clienteEncontrado.id,
+      nombre: clienteEncontrado.full_name || clienteEncontrado.business_name || "CLIENTE REGISTRADO",
+      existe: true
     };
+
   } catch (error) {
-    console.error(">>> [LOG SERVIDOR] Error en la conexión con Araujos:", error);
+    console.error("Error en consultarClienteExterno:", error);
     return null;
   }
 }

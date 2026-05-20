@@ -11,11 +11,11 @@ datasource db {
 
 model User {
   id        Int      @id @default(autoincrement())
-  username  String   @unique // Para clientes guardaremos su cédula aquí también
+  username  String   @unique 
   cedula    String   @unique
   password  String
   nombre    String?
-  rol       String   @default("CLIENTE") // Cambiado a CLIENTE por defecto para los nuevos registros dinámicos
+  rol       String   @default("VENDEDOR") // Regresa a VENDEDOR por defecto corporativo
   estado    String   @default("Activo")
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -67,7 +67,7 @@ model Evidencia {
   campanaId     Int
   campana       Campana  @relation(fields: [campanaId], references: [id])
   valorPagado   Float    @default(2.00)
-  estado        String   @default("pendiente") // pendiente, aprobado, rechazado
+  estado        String   @default("pendiente")
   motivoRechazo String?  
   imageHash     String?  @unique 
   createdAt     DateTime @default(now())
@@ -95,4 +95,16 @@ model Canje {
   premio     Premio   @relation(fields: [premioId], references: [id])
   estado     String   @default("pendiente") 
   createdAt  DateTime @default(now())
+}
+
+model ClienteWeb {
+  id        Int      @id @default(autoincrement())
+  cedula    String   @unique // Cédula del cliente
+  password  String   // Contraseña que el cliente creará para ver sus deudas
+  nombre    String   // Nombre real importado de Grupo Araujos
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("clientes_web") // Nombre de la tabla en MySQL
 }

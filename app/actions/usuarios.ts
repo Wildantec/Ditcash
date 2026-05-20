@@ -3,10 +3,16 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 
-// 1. OBTENER TODOS LOS USUARIOS (Limpiando Decimales)
+// 1. OBTENER TODOS LOS USUARIOS INTERNOS (Filtrado y Limpiando Decimales)
 export async function getUsuariosAction() {
   try {
     const usuarios = await prisma.user.findMany({
+      // 🔒 FILTRO: Excluimos cualquier rol 'CLIENTE' antiguo para que no se mezcle
+      where: {
+        rol: {
+          in: ['ADMIN', 'VENDEDOR']
+        }
+      },
       include: {
         vendedor: true
       },
@@ -15,6 +21,7 @@ export async function getUsuariosAction() {
       }
     })
 
+    // Mantenemos intacta tu lógica de conversión para no alterar tus componentes
     const usuariosLimpios = usuarios.map((u:any) => ({
       ...u,
       vendedor: u.vendedor ? {

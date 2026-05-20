@@ -26,3 +26,35 @@ body {
   h2 { @apply text-xl font-bold tracking-tight; }
   h3 { @apply text-lg font-bold; }
 }
+@media print {
+  /* Configurar el tamaño de papel A4 sin márgenes sucios del navegador */
+  @page {
+    size: A4;
+    margin: 15mm 12mm;
+  }
+  
+  /* Forzar a que los detalles de los acordeones siempre se impriman abiertos */
+  details {
+    display: block !important;
+  }
+  details summary::-webkit-details-marker,
+  details font {
+    display: none !important;
+  }
+  
+  /* Ocultar fondos del sistema, botones de descarga y elementos innecesarios */
+  body {
+    background: white !important;
+    color: #001F3F !important;
+  }
+  
+  button, .no-print {
+    display: none !important;
+  }
+  
+  /* Quitar las sombras pesadas de Tailwind que se ven oscuras en papel */
+  .shadow-sm, .shadow-xl, .shadow-inner {
+    box-shadow: none !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+}

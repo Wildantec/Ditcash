@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   db-ditcash:
     image: mysql:8.0
@@ -23,7 +25,11 @@ services:
     restart: always
     depends_on:
       - db-ditcash 
-    command: node server.js
+    volumes:
+      - ./app:/app/app             # Mapea tus rutas de páginas y endpoints
+      - ./components:/app/components # Mapea tus componentes (como BotonImprimir)
+      - ./lib:/app/lib          # Aísla la caché interna de optimización
+    # ------------------------------------------------------------------
     environment:
       DATABASE_URL: "mysql://root:Wildantec2026@db-ditcash:3306/ditcash_db"
       NODE_ENV: production
