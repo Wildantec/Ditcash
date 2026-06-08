@@ -1,8 +1,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { consultarClienteExterno } from '@/lib/grupoAraujos';
-// Importamos el nuevo botón procesador de PDF
 import BotonImprimir from '../../../components/BotonImprimir'; 
+// 🎯 Importamos nuestro nuevo desglosador dinámico por demanda
+import DetalleCuotas from '@/app/components/DetalleCuotas';
 
 export const dynamic = 'force-dynamic'; 
 
@@ -69,6 +70,7 @@ async function obtenerDatosContablescompletos(clienteIdContable: string) {
     const datosEmpresa = resEmpresa.ok ? await resEmpresa.json() : null;
 
     return {
+      token: token, // 🎯 Pasamos el token hacia el componente para reusarlo abajo
       movimientos: datosMovs?.data || datosMovs?.items || (Array.isArray(datosMovs) ? datosMovs : []),
       fichaCliente: datosFicha?.data || datosFicha || null,
       datosEmpresa: datosEmpresa?.data || datosEmpresa || null
@@ -92,10 +94,12 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
   let listaMovimientos: any[] = [];
   let fichaClienteReal: any = null;
   let datosEmpresaReal: any = null;
+  let tokenSeguridad = "";
 
   if (infoCliente?.idInterno) {
     const todoElPaquete = await obtenerDatosContablescompletos(infoCliente.idInterno.toString());
     if (todoElPaquete) {
+      tokenSeguridad = todoElPaquete.token;
       listaMovimientos = todoElPaquete.movimientos;
       fichaClienteReal = todoElPaquete.fichaCliente;
       datosEmpresaReal = todoElPaquete.datosEmpresa;
@@ -105,17 +109,11 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
   const totalFacturadoGeneral = listaMovimientos.reduce((acc, item) => acc + Number(item.total_amount || 0), 0);
   const totalSaldoGeneral = listaMovimientos.reduce((acc, item) => acc + Number(item.total_balance || 0), 0);
 
-  // 🎯 EVALUACIÓN EN CALIENTE PARA EL MÓDULO VISUAL DE PREMIOS
-  // Verificamos si en la lista de movimientos existe alguna cuota con estado vencido
   const tieneDeudasVencidas = listaMovimientos.some(
     (item) => (item.days_overdue || 0) > 0 || (item.overdue_installments || 0) > 0
   );
 
-  // Calculamos el valor acumulado total que el cliente ya ha abonado de sus créditos
   const totalAbonadoReal = listaMovimientos.reduce((acc, item) => acc + Number(item.paid_amount || 0), 0);
-  
-  // Regla de simulación visual: si tiene mora su saldo baja a cero. Si está al día, le otorgamos 
-  // una base de 50 puntos de bienvenida + 1 punto por cada $10.00 pagados con éxito.
   const saldoPuntosVisual = tieneDeudasVencidas ? 0 : Math.floor(totalAbonadoReal / 10) + 50;
 
   return (
@@ -139,10 +137,8 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* 🎁 NUEVA SECCIÓN VISUAL DE PREMIOS Y FIDELIZACIÓN (GAMIFICACIÓN) */}
+      {/* SECCIÓN VISUAL DE PREMIOS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Tarjeta 1: Saldo de Puntos */}
         <div className="bg-gradient-to-br from-[#001F3F] to-[#002B55] p-6 rounded-[2.5rem] shadow-[0_15px_30px_rgba(0,31,63,0.06)] text-white border border-white/10 relative overflow-hidden flex flex-col justify-between min-h-[145px]">
           <div className="absolute -right-4 -bottom-6 text-8xl opacity-10 font-black select-none">🏆</div>
           <div>
@@ -158,7 +154,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
           </p>
         </div>
 
-        {/* Tarjeta 2: Calificación crediticia */}
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[145px]">
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Comportamiento de Pago</p>
@@ -176,7 +171,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
           </p>
         </div>
 
-        {/* Tarjeta 3: Meta de Incentivos */}
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col justify-between min-h-[145px]">
           <div>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Próximo Obsequio Elegible</p>
@@ -184,7 +178,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
               <span>🎁</span> {saldoPuntosVisual >= 200 ? "Kit Tecnológico VIP" : "Auriculares Inalámbricos"}
             </p>
           </div>
-          {/* Barra de Progreso */}
           <div className="mt-2">
             <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
               <div 
@@ -198,7 +191,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
             </div>
           </div>
         </div>
-
       </div>
 
       {/* CONTENEDOR DE LA TABLA PRINCIPAL */}
@@ -207,7 +199,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
         <div className="p-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
           <h2 className="font-black uppercase text-sm tracking-tighter">Valores Pendientes</h2>
           <div className="flex items-center gap-3">
-            
             <BotonImprimir 
               clienteNombre={nombreAMostrar} 
               clienteCedula={cedula} 
@@ -215,7 +206,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
               fichaCliente={fichaClienteReal}
               empresaCliente={datosEmpresaReal}
             />
-            
             <span className="bg-[#001F3F] text-[#FFB800] text-[9px] font-black px-3 py-1 rounded-full uppercase">Sincronizado</span>
           </div>
         </div>
@@ -236,12 +226,13 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
               {listaMovimientos.length > 0 ? (
                 listaMovimientos.map((item: any, index: number) => {
                   let numeroComprobante = "";
+                  
                   if (item.sales_note?.sales_note_number) {
-                    numeroComprobante = `NV-${item.sales_note.sales_note_number}`;
+                    numeroComprobante = item.sales_note.sales_note_number;
                   } else if (item.invoice?.invoice_number) {
-                    numeroComprobante = `FAC-${item.invoice.invoice_number}`;
+                    numeroComprobante = item.invoice.invoice_number;
                   } else {
-                    numeroComprobante = `NV-001-001-${String(index + 13).padStart(9, '0')}`;
+                    numeroComprobante = `001-001-${String(index + 13).padStart(9, '0')}`;
                   }
                   
                   const montoTotal = Number(item.total_amount || 0);
@@ -251,7 +242,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
 
                   const fechaEmision = item.date_issue || "N/A";
                   const fechaVencimiento = item.date_due || "N/A";
-                  const esVencido = (item.days_overdue || 0) > 0 || (item.overdue_installments || 0) > 0;
 
                   return (
                     <details key={itemKey} className="group open:bg-slate-50/40 transition-all duration-300">
@@ -277,25 +267,13 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
                         </div>
                       </summary>
 
-                      <div className="px-10 pb-5 pt-2 bg-slate-50/40 mx-10 mb-4 rounded-2xl border border-slate-100/60">
-                        <div className="flex items-center px-4 py-3.5 text-xs text-slate-600 font-medium bg-white rounded-xl shadow-sm border border-slate-100/40">
-                          <div className="w-[35%] text-slate-700 font-bold pl-4">— Cuota única</div>
-                          <div className="w-[12%] text-center"></div> 
-                          <div className="w-[32%] text-center text-slate-400 italic text-[12px]">
-                            {fechaVencimiento} (Venc.)
-                          </div>
-                          <div className="w-[13%] text-right text-slate-400 font-medium pr-1">${montoTotal.toFixed(2)}</div>
-                          <div className="w-[13%] text-right text-slate-400 font-medium pr-1">${saldoPendiente.toFixed(2)}</div>
-                          <div className="w-[10%] text-center">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              esVencido ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-500'
-                            }`}>
-                              {esVencido ? 'Vencido' : 'Pendiente'}
-                            </span>
-                          </div>
-                          <div className="w-[5%]"></div>
-                        </div>
-                      </div>
+                      {/* 🎯 REEMPLAZO LOGRADO: Ahora llamamos al cargador dinámico con los IDs correspondientes */}
+                      <DetalleCuotas 
+                        invoiceId={item.invoice_id || item.invoice?.id}
+                        salesNoteId={item.sales_note_id || item.sales_note?.id}
+                        token={tokenSeguridad}
+                        montoTotalDoc={montoTotal}
+                      />
                     </details>
                   );
                 })

@@ -108,3 +108,9 @@ model ClienteWeb {
 
   @@map("clientes_web") // Nombre de la tabla en MySQL
 }
+model BodegaConfig {
+  id                Int      @id @default(autoincrement())
+  id_bodega_araujo  String   @unique // El ID tal cual viene del sistema de Araujos
+  es_principal      Boolean  @default(false)
+  updated_at        DateTime @updatedAt
+}

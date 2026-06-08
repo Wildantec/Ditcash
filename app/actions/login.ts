@@ -5,11 +5,14 @@ import bcrypt from 'bcryptjs'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { consultarClienteExterno } from '@/lib/grupoAraujos'
-
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 
 export async function loginAction(formData: FormData) {
   const cedula = formData.get('cedula') as string
   const password = formData.get('password') as string
+
+  // Definimos una variable para saber a dónde redireccionar después del bloque seguro
+  let urlRedireccion: string | null = null
 
   try {
     const user = await prisma.user.findUnique({
@@ -33,19 +36,32 @@ export async function loginAction(formData: FormData) {
       maxAge: 60 * 60 * 24
     })
 
+    // En lugar de redirigir adentro del try, guardamos la ruta de destino de forma segura
     if (user.rol === 'ADMIN') {
-      redirect('/dashboard/admin')
+      urlRedireccion = '/dashboard/admin'
+    } else if (user.rol === 'MARKETING'){
+      urlRedireccion = '/dashboard/admin' // 
     } else {
-      redirect('/dashboard/vendedor')
+      urlRedireccion = '/dashboard/vendedor' // 
     }
+
   } catch (error: any) {
-    if (error.message === 'NEXT_REDIRECT') throw error;
+    // Si es un error de redirección nativo de Next.js, lo dejamos pasar sin interferir
+    if (isRedirectError(error)) throw error;
+    
+    console.error(" ERROR REAL EN EL PROCESO DE LOGIN:", error)
     return { error: "Error en el servidor administrativo" }
+  }
+
+  // Redireccionamos limpiamente FUERA del bloque try-catch
+  if (urlRedireccion) {
+    redirect(urlRedireccion)
   }
 }
 
 export async function manejarFlujoClienteAction(cedula: string, passwordIngresada?: string) {
   try {
+    // 1. BÚSQUEDA LOCAL CON TU QUERY RAW ORIGINAL (Perfecto para MySQL)
     const clientesExistentes: any[] = await prisma.$queryRaw`
       SELECT * FROM clientes_web WHERE cedula = ${cedula} LIMIT 1
     `;
@@ -59,13 +75,18 @@ export async function manejarFlujoClienteAction(cedula: string, passwordIngresad
           return { error: "Contraseña incorrecta." };
         }
         
+        // CONTROL DE SEGURIDAD LOCAL: Nos aseguramos de transformar el ID a String plano de JS
+        const idUsuarioSeguro = String(usuarioWeb.id);
+        
         const cookieStore = await cookies()
-        cookieStore.set('user_id', usuarioWeb.id.toString(), { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 });
+        cookieStore.set('user_id', idUsuarioSeguro, { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 });
         return { status: "LOGIN_SUCCESS" };
       }
       
       return { status: "EXISTE_LOCAL", nombre: usuarioWeb.nombre }; 
     }
+
+    // 2. CONSULTA EN ARAUJOS
     const clienteContable = await consultarClienteExterno(cedula);
 
     if (!clienteContable) {
@@ -78,28 +99,30 @@ export async function manejarFlujoClienteAction(cedula: string, passwordIngresad
       return { error: "Esta identificación pertenece al personal administrativo de la empresa." };
     }
 
+    // 3. ACTIVACIÓN / CAMBIO DE CLAVE (CORREGIDO PARA EVITAR EL ERROR DE UPDATEDAT)
     if (passwordIngresada) {
       const hashedPassword = await bcrypt.hash(passwordIngresada, 10);
 
-      await prisma.$queryRaw`
-        INSERT INTO clientes_web (cedula, password, nombre) 
-        VALUES (${cedula}, ${hashedPassword}, ${clienteContable.nombre})
-      `;
+      const nuevoCliente = await prisma.clienteWeb.create({
+        data: {
+          cedula: cedula,
+          password: hashedPassword,
+          nombre: clienteContable.nombre
+        }
+      });
 
-      const recienCreado: any[] = await prisma.$queryRaw`
-        SELECT id FROM clientes_web WHERE cedula = ${cedula} LIMIT 1
-      `;
-      const nuevoId = recienCreado[0]?.id || 999;
+      const nuevoIdSeguro = String(nuevoCliente.id);
 
       const cookieStore = await cookies()
-      cookieStore.set('user_id', nuevoId.toString(), { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 });
+      cookieStore.set('user_id', nuevoIdSeguro, { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 });
       
       return { status: "ACTIVACION_COMPLETA" };
     }
 
     return { status: "REQUIERE_ACTIVACION", nombre: clienteContable.nombre };
 
-  } catch (e) {
+  } catch (e: any) {
+    console.error("ERROR REAL EN MYSQL LOCAL:", e);
     return { error: "Error en el servidor de autenticación." };
   }
 }

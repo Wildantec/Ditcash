@@ -96,6 +96,7 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
           >
             <option value="VENDEDOR">VENDEDOR</option>
             <option value="ADMIN">ADMINISTRADOR</option>
+            <option value="MARKETING">MARKETING</option>
           </select>
         </div>
 

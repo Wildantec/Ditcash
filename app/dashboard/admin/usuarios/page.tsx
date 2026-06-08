@@ -82,7 +82,7 @@ export default function UsuariosPage() {
                   <td className="px-10 py-6">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-lg shadow-inner group-hover:bg-[#FFB800] group-hover:text-white transition-all">
-                        {u.rol === 'ADMIN' ? '🛡️' : '👤'}
+                       {u.rol === 'ADMIN' ? '🛡️' : u.rol === 'MARKETING' ? '📢' : '👤'}
                       </div>
                       <p className="text-[13px] font-black uppercase tracking-tight text-[#001F3F]">
                         {u.vendedor?.nombre || u.nombre || 'Administrador Ditec'}
@@ -96,6 +96,8 @@ export default function UsuariosPage() {
                     <span className={`text-[9px] font-black px-4 py-2 rounded-xl uppercase tracking-widest border ${
                       u.rol === 'ADMIN' 
                       ? 'bg-purple-50 text-purple-600 border-purple-100' 
+                      : u.rol === 'MARKETING'
+                      ? 'bg-orange-50 text-orange-600 border-orange-100'
                       : 'bg-blue-50 text-blue-600 border-blue-100'
                     }`}>
                       {u.rol}

@@ -9,9 +9,16 @@ services:
       MYSQL_DATABASE: ditcash_db
       MYSQL_ROOT_PASSWORD: Wildantec2026
     volumes:
-      - ditcash_mysql_data:/var/lib/mysql
+      # Usamos un volumen local para tus pruebas en la computadora
+      - ditcash_mysql_data_local:/var/lib/mysql
     ports:
-      - "3307:3306"
+      # Redireccionamos el puerto al 3309 para evitar el error de "Address already in use"
+      - "3309:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pWildantec2026"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
@@ -27,12 +34,11 @@ services:
       - db-ditcash 
     volumes:
       - ./app:/app/app             # Mapea tus rutas de páginas y endpoints
-      - ./components:/app/components # Mapea tus componentes (como BotonImprimir)
-      - ./lib:/app/lib          # Aísla la caché interna de optimización
-    # ------------------------------------------------------------------
+      - ./components:/app/components # Mapea tus componentes
+      - ./lib:/app/lib             # Mapea tus librerías de utilidades
     environment:
       DATABASE_URL: "mysql://root:Wildantec2026@db-ditcash:3306/ditcash_db"
-      NODE_ENV: production
+      NODE_ENV: development
       API_CONTABLE_URL: "https://grupoaraujos.cloud"
       API_CONTABLE_EMAIL: "soporte@disar-ec.com"
       API_CONTABLE_PASSWORD: "admin123"
@@ -48,6 +54,4 @@ services:
           memory: 256M
 
 volumes:
-  ditcash_mysql_data:
-    name: clientes-app-main_ditcash_mysql_data
-    external: true
+  ditcash_mysql_data_local:

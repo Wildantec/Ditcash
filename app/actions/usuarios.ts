@@ -7,10 +7,9 @@ import { revalidatePath } from 'next/cache'
 export async function getUsuariosAction() {
   try {
     const usuarios = await prisma.user.findMany({
-      // 🔒 FILTRO: Excluimos cualquier rol 'CLIENTE' antiguo para que no se mezcle
       where: {
         rol: {
-          in: ['ADMIN', 'VENDEDOR']
+          in: ['ADMIN', 'VENDEDOR', 'MARKETING']
         }
       },
       include: {
@@ -20,8 +19,6 @@ export async function getUsuariosAction() {
         id: 'desc'
       }
     })
-
-    // Mantenemos intacta tu lógica de conversión para no alterar tus componentes
     const usuariosLimpios = usuarios.map((u:any) => ({
       ...u,
       vendedor: u.vendedor ? {

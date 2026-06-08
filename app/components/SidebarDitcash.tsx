@@ -4,22 +4,46 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getActiveCampanaId } from '../actions/campanas'
+import { 
+  BarChart3, 
+  Users, 
+  Briefcase, 
+  Package, 
+  Rocket, 
+  Gift, 
+  Bell, 
+  Coins, 
+  FolderOpen, 
+  LogOut,
+  Menu,
+  X
+} from 'lucide-react'
 
-export default function SidebarDitcash({ role }: { role: 'admin' | 'vendedor' }) {
+interface SidebarProps {
+  role: 'ADMIN' | 'MARKETING' | 'VENDEDOR'
+}
+
+export default function SidebarDitcash({ role }: SidebarProps) {
   const router = useRouter()
-  const pathname = usePathname()
+  const pathname = usePathname() // 🎯 Detecta la URL real en el navegador del cliente
   const [activeCampanaId, setActiveCampanaId] = useState<number | null>(null)
-  
-  // ESTADO PARA EL MENÚ MÓVIL
   const [isOpen, setIsOpen] = useState(false)
+
+  //  CONTROL TOTAL: Si el usuario está en la página principal (/), el Sidebar se destruye por completo
+  if (pathname === '/') {
+    return null
+  }
 
   const handleLogout = () => {
     document.cookie = "user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    router.push('/')
+    document.cookie = "user_role=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    
+    // Forzamos la salida limpia a la raíz
+    window.location.href = '/'
   }
 
   useEffect(() => {
-    if (role === 'vendedor') {
+    if (role === 'VENDEDOR') {
       async function fetchActiveCampana() {
         const id = await getActiveCampanaId()
         if (id) setActiveCampanaId(id)
@@ -28,28 +52,25 @@ export default function SidebarDitcash({ role }: { role: 'admin' | 'vendedor' })
     }
   }, [role])
 
-  // Función para cerrar el sidebar al hacer clic en un link (solo en móvil)
   const closeSidebar = () => setIsOpen(false)
+
+  const obtenerEtiquetaPanel = () => {
+    if (role === 'ADMIN') return 'Panel Admin Global'
+    if (role === 'MARKETING') return 'Panel Marketing'
+    return 'Panel Vendedor'
+  }
 
   return (
     <>
-      {/* 1. BOTÓN HAMBURGUESA (Solo visible en móviles) */}
+      {/* 1. BOTÓN HAMBURGUESA (Móviles) */}
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-[60] bg-[#001F3F] text-[#FFB800] p-3 rounded-xl shadow-2xl border border-white/10 active:scale-95 transition-all"
+        className="lg:hidden fixed top-4 left-4 z-[60] bg-[#001F3F] text-[#FFB800] p-3 rounded-xl shadow-2xl border border-white/10 active:scale-95 transition-all flex items-center justify-center"
       >
-        {isOpen ? (
-          <span className="text-xl font-bold">✕</span> // Icono cerrar
-        ) : (
-          <div className="space-y-1.5">
-            <div className="w-6 h-0.5 bg-[#FFB800]"></div>
-            <div className="w-6 h-0.5 bg-[#FFB800]"></div>
-            <div className="w-6 h-0.5 bg-[#FFB800]"></div>
-          </div>
-        )}
+        {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* 2. OVERLAY (Capa oscura al abrir menú en móvil) */}
+      {/* 2. OVERLAY */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[40] lg:hidden transition-opacity"
@@ -66,26 +87,45 @@ export default function SidebarDitcash({ role }: { role: 'admin' | 'vendedor' })
       `}>
         <div className="p-8 mt-10 lg:mt-0">
           <h2 className="text-[#FFB800] text-3xl font-black italic tracking-tighter">DITCASH</h2>
-          <p className="text-[10px] text-slate-400 tracking-[3px] uppercase font-bold mt-1">
-            {role === 'admin' ? 'Panel Admin' : 'Panel Vendedor'}
+          <p className="text-[10px] text-slate-400 tracking-[1px] uppercase font-bold mt-1">
+            {obtenerEtiquetaPanel()}
           </p>
         </div>
 
         <nav className="flex-grow flex flex-col mt-4 overflow-y-auto">
-          {role === 'admin' ? (
+          {/* MENÚ 1: ADMIN GLOBAL */}
+          {role === 'ADMIN' && (
             <>
-              <NavLink href="/dashboard/admin" label="Resumen Global" icon="📊" onClick={closeSidebar} />
-              <NavLink href="/dashboard/admin/usuarios" label="Usuarios" icon="👥" onClick={closeSidebar} />
-              <NavLink href="/dashboard/admin/vendedores" label="Vendedores" icon="💼" onClick={closeSidebar} />
-              <NavLink href="/dashboard/admin/campanas" label="Campañas" icon="🚀" onClick={closeSidebar} />
-              <NavLink href="/dashboard/admin/premios" label="Premios" icon="🎁" onClick={closeSidebar} />
-              <NavLink href="/dashboard/admin/canjes" label="Canjes" icon="🔔" onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin" label="Resumen Global" icon={BarChart3} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/usuarios" label="Usuarios" icon={Users} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/vendedores" label="Vendedores" icon={Briefcase} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/campanas" label="Campañas" icon={Rocket} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/premios" label="Premios" icon={Gift} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/canjes" label="Canjes" icon={Bell} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/bodegas" label="Bodegas" icon={Gift} onClick={closeSidebar} />
+              <NavLink href="/dashboard/inventario" label="Inventario Global" icon={Package} onClick={closeSidebar} />
             </>
-          ) : (
+          )}
+
+          {/* MENÚ 2: ADMIN DE MARKETING */}
+          {role === 'MARKETING' && (
             <>
-              <NavLink href="/dashboard/vendedor" label="Mis Puntos" icon="💰" onClick={closeSidebar} />
-              <NavLink href="/dashboard/vendedor/campanas/historial" label="Mis Campañas" icon="📂" onClick={closeSidebar} />
-              <NavLink href="/dashboard/vendedor/premios" label="Premios" icon="🎁" onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin" label="Resumen Marketing" icon={BarChart3} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/campanas" label="Campañas" icon={Rocket} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/premios" label="Premios" icon={Gift} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/vendedores" label="Vendedores" icon={Briefcase} onClick={closeSidebar} />
+              <NavLink href="/dashboard/admin/canjes" label="Canjes" icon={Bell} onClick={closeSidebar} />
+              <NavLink href="/dashboard/inventario" label="Inventario & Publicidad" icon={Package} onClick={closeSidebar} />
+            </>
+          )}
+
+          {/* MENÚ 3: VENDEDOR */}
+          {role === 'VENDEDOR' && (
+            <>
+              <NavLink href="/dashboard/vendedor" label="Mis Puntos" icon={Coins} onClick={closeSidebar} />
+              <NavLink href="/dashboard/vendedor/campanas/historial" label="Mis Campañas" icon={FolderOpen} onClick={closeSidebar} />
+              <NavLink href="/dashboard/vendedor/premios" label="Premios" icon={Gift} onClick={closeSidebar} />
+              <NavLink href="/dashboard/inventario" label="Inventario" icon={Package} onClick={closeSidebar} />
             </>
           )}
         </nav>
@@ -93,9 +133,10 @@ export default function SidebarDitcash({ role }: { role: 'admin' | 'vendedor' })
         <div className="p-6 border-t border-white/10">
           <button 
             onClick={handleLogout}
-            className="flex items-center gap-4 px-6 py-4 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-2xl transition-all w-full"
+            className="flex items-center gap-4 px-8 py-4 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-2xl transition-all w-full text-left"
           >
-            <span>🚪</span> Cerrar Sesión
+            <LogOut size={16} className="text-red-400" /> 
+            <span>Cerrar Sesión</span>
           </button>
         </div>
       </aside>
@@ -103,7 +144,7 @@ export default function SidebarDitcash({ role }: { role: 'admin' | 'vendedor' })
   )
 }
 
-function NavLink({ href, icon, label, onClick }: any) {
+function NavLink({ href, icon: IconComponent, label, onClick }: any) {
   const pathname = usePathname()
   const isActive = pathname === href
 
@@ -112,13 +153,13 @@ function NavLink({ href, icon, label, onClick }: any) {
       href={href} 
       onClick={onClick}
       className={`
-        flex items-center gap-4 px-8 py-4 transition-all
+        flex items-center gap-4 px-8 py-4 transition-all border-l-4
         ${isActive 
-          ? 'bg-[#FFB800] text-[#001F3F] font-black' 
-          : 'text-slate-400 hover:bg-[#002d5c] hover:text-white font-medium'}
+          ? 'bg-[#FFB800]/10 text-[#FFB800] border-[#FFB800] font-black' 
+          : 'text-slate-400 border-transparent hover:bg-[#002d5c] hover:text-white font-medium'}
       `}
     >
-      <span className="text-lg">{icon}</span>
+      <IconComponent size={16} strokeWidth={2.5} />
       <span className="text-xs uppercase tracking-widest">{label}</span>
     </Link>
   )
