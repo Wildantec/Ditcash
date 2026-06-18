@@ -1,4 +1,3 @@
-// src/app/layout.tsx
 import './globals.css'
 import { Inter } from 'next/font/google'
 
@@ -17,7 +16,6 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={inter.className}>
-        {/* Totalmente limpio: Sin contenedores flex ni barras laterales molestas */}
         {children}
       </body>
     </html>

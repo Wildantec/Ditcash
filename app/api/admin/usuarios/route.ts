@@ -8,18 +8,15 @@ export async function POST(req: Request) {
     const hashedPassword = await bcrypt.hash(password, 10)
 
     const result = await prisma.$transaction(async (tx: any) => {
-      // 1. Crear el usuario para el Login
       const newUser = await tx.user.create({
         data: {
-          username: cedula, // Usamos la cédula como username para que no se olviden
+          username: cedula,
           cedula,
           password: hashedPassword,
           nombre,
           rol: rol || 'VENDEDOR',
         },
       })
-
-      // 2. Si es vendedor, crear su perfil de puntos inmediatamente
       if (rol === 'VENDEDOR') {
         await tx.vendedor.create({
           data: {

@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { consultarClienteExterno } from '@/lib/grupoAraujos';
 import BotonImprimir from '../../../components/BotonImprimir'; 
-// 🎯 Importamos nuestro nuevo desglosador dinámico por demanda
 import DetalleCuotas from '@/app/components/DetalleCuotas';
 
 export const dynamic = 'force-dynamic'; 
@@ -70,13 +69,12 @@ async function obtenerDatosContablescompletos(clienteIdContable: string) {
     const datosEmpresa = resEmpresa.ok ? await resEmpresa.json() : null;
 
     return {
-      token: token, // 🎯 Pasamos el token hacia el componente para reusarlo abajo
+      token: token,
       movimientos: datosMovs?.data || datosMovs?.items || (Array.isArray(datosMovs) ? datosMovs : []),
       fichaCliente: datosFicha?.data || datosFicha || null,
       datosEmpresa: datosEmpresa?.data || datosEmpresa || null
     };
   } catch (error) {
-    console.error("Error al obtener datos contables completos:", error);
     return null;
   }
 }
@@ -118,8 +116,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
 
   return (
     <div className="max-w-6xl w-full mx-auto p-4 md:p-10 pt-28 md:pt-32 space-y-8 flex-grow">
-      
-      {/* CABECERA */}
       <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFB800] opacity-5 rounded-full -mr-10 -mt-10" />
         <h1 className="text-3xl font-black uppercase italic leading-none">
@@ -136,8 +132,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
           </div>
         </div>
       </div>
-
-      {/* SECCIÓN VISUAL DE PREMIOS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-br from-[#001F3F] to-[#002B55] p-6 rounded-[2.5rem] shadow-[0_15px_30px_rgba(0,31,63,0.06)] text-white border border-white/10 relative overflow-hidden flex flex-col justify-between min-h-[145px]">
           <div className="absolute -right-4 -bottom-6 text-8xl opacity-10 font-black select-none">🏆</div>
@@ -192,8 +186,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
           </div>
         </div>
       </div>
-
-      {/* CONTENEDOR DE LA TABLA PRINCIPAL */}
       <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,31,63,0.04)] border border-white overflow-hidden">
         
         <div className="p-6 border-b border-slate-50 bg-slate-50/30 flex justify-between items-center">
@@ -266,8 +258,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
                           ▼
                         </div>
                       </summary>
-
-                      {/* 🎯 REEMPLAZO LOGRADO: Ahora llamamos al cargador dinámico con los IDs correspondientes */}
                       <DetalleCuotas 
                         invoiceId={item.invoice_id || item.invoice?.id}
                         salesNoteId={item.sales_note_id || item.sales_note?.id}
@@ -286,8 +276,6 @@ export default async function EstadoCuentaPage({ params }: PageProps) {
                 </div>
               )}
             </div>
-
-            {/* TOTALES */}
             <div className="bg-slate-50/30 p-6 border-t border-slate-100 flex flex-col items-end space-y-1 pr-24">
               <div className="flex items-center gap-4 text-sm">
                 <span className="text-slate-400 font-bold uppercase text-[11px] tracking-wider">Total Facturado:</span>

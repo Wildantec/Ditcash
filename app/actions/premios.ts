@@ -10,8 +10,6 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true
 });
-
-// FUNCIÓN PARA SUBIR A CLOUDINARY
 async function uploadToCloudinary(buffer: Buffer, folder: string) {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -29,9 +27,6 @@ async function uploadToCloudinary(buffer: Buffer, folder: string) {
     uploadStream.end(buffer)
   })
 }
-
-// --- ACCIONES DE ADMINISTRADOR ---
-
 export async function crearPremioAction(formData: FormData) {
   try {
     const nombre = formData.get('nombre') as string
@@ -98,8 +93,6 @@ export async function actualizarPremioAction(id: number, formData: FormData) {
     return { error: "No se pudo actualizar el premio" }
   }
 }
-
-// --- NUEVA: OBTENER SOLICITUDES DE CANJE (Para el Admin) ---
 export async function getSolicitudesCanje() {
   try {
     return await prisma.canje.findMany({
@@ -115,7 +108,6 @@ export async function getSolicitudesCanje() {
   }
 }
 
-// --- NUEVA: APROBAR CANJE (Para el Admin) ---
 export async function gestionarCanjeAction(canjeId: number, aprobado: boolean) {
   try {
     const canje = await prisma.canje.findUnique({
@@ -126,37 +118,30 @@ export async function gestionarCanjeAction(canjeId: number, aprobado: boolean) {
     if (!canje) return { error: "Canje no encontrado" }
 
     if (aprobado) {
-      // Usamos una transacción para asegurar que todo pase o nada pase
       await prisma.$transaction([
-        // 1. Marcamos el canje como aprobado
         prisma.canje.update({ 
           where: { id: canjeId }, 
           data: { estado: 'aprobado' } 
         }),
-        // 2. Desactivamos el premio para que ya no exista en el catálogo
         prisma.premio.update({ 
           where: { id: canje.premioId }, 
           data: { activo: false, reservado: true } 
         }),
-        // 3. Incrementamos el saldo gastado del vendedor
         prisma.vendedor.update({
           where: { id: canje.vendedorId },
           data: { 
             saldoGastado: { 
-              increment: canje.premio.puntos // Prisma maneja el incremento automáticamente
+              increment: canje.premio.puntos
             } 
           }
         })
       ])
     } else {
-      // Si se rechaza el canje
       await prisma.$transaction([
-        // 1. Marcamos el canje como rechazado
         prisma.canje.update({ 
           where: { id: canjeId }, 
           data: { estado: 'rechazado' } 
         }),
-        // 2. Liberamos el premio para que otros lo puedan ver/canjear
         prisma.premio.update({
           where: { id: canje.premioId },
           data: { reservado: false, activo: true }
@@ -170,13 +155,9 @@ export async function gestionarCanjeAction(canjeId: number, aprobado: boolean) {
     
     return { success: true }
   } catch (error: any) {
-    console.error("ERROR EN GESTIONAR CANJE:", error)
     return { error: "No se pudo procesar: verifica que el vendedor tenga el campo saldoGastado." }
   }
 }
-
-// --- ACCIONES DE VENDEDOR ---
-
 export async function solicitarCanjeAction(premioId: number) {
   try {
     const cookieStore = await cookies()
@@ -187,8 +168,6 @@ export async function solicitarCanjeAction(premioId: number) {
       where: { usuarioId: parseInt(userId) }
     })
     if (!vendedor) return { error: "Vendedor no encontrado" }
-
-    // Verificar si ya fue reservado mientras el usuario veía la página
     const premio = await prisma.premio.findUnique({ where: { id: premioId } })
     if (premio?.reservado) return { error: "Este premio ya ha sido solicitado por otro usuario." }
 
@@ -235,10 +214,7 @@ export async function eliminarPremioAction(id: number) {
 
 export async function realizarCanjeAction(vendedorId: number, premioId: number) {
   try {
-    // 1. Iniciamos una transacción para que el proceso sea atómico
     const resultado = await prisma.$transaction(async (tx:any) => {
-      
-      // A. Obtener datos del premio y del vendedor
       const premio = await tx.premio.findUnique({
         where: { id: premioId }
       });
@@ -250,43 +226,34 @@ export async function realizarCanjeAction(vendedorId: number, premioId: number) 
       if (!premio || !vendedor) {
         throw new Error("Premio o Vendedor no encontrado");
       }
-
-      // B. Verificar si tiene saldo suficiente
       if (vendedor.saldo < premio.costo) {
         throw new Error("Saldo insuficiente para este premio");
       }
-
-      // C. Crear el registro del canje
       const nuevoCanje = await tx.canje.create({
         data: {
           vendedorId: vendedorId,
           premioId: premioId,
-          estado: 'pendiente', // O el estado inicial que uses
+          estado: 'pendiente',
           valorCanjeado: premio.costo
         }
       });
-
-      // D. RESTAR EL VALOR DEL SALDO DEL VENDEDOR
       const vendedorActualizado = await tx.vendedor.update({
         where: { id: vendedorId },
         data: {
           saldo: {
-            decrement: premio.costo // Resta automáticamente el costo del premio
+            decrement: premio.costo
           }
         }
       });
 
       return { nuevoCanje, nuevoSaldo: vendedorActualizado.saldo };
     });
-
-    // Revalidamos las rutas para que el vendedor vea su nuevo saldo de inmediato
     revalidatePath('/dashboard/vendedor');
     revalidatePath('/dashboard/admin/canjes');
 
     return { success: true, saldoActual: resultado.nuevoSaldo };
 
   } catch (error: any) {
-    console.error("Error en el canje:", error.message);
     return { error: error.message || "Error al procesar el canje" };
   }
 }

@@ -25,7 +25,6 @@ export default function HistorialRendimientoPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 text-[#001F3F]">
       
-      {/* HEADER SUPERIOR */}
       <header className="mb-8 md:mb-10 pb-4 border-b border-slate-200 text-center md:text-left">
         <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Historial de Campañas</h1>
         <p className="text-slate-400 font-bold mt-1 text-[10px] md:text-[11px] uppercase tracking-[0.2em] opacity-70">
@@ -33,7 +32,6 @@ export default function HistorialRendimientoPage() {
         </p>
       </header>
 
-      {/* VISTA PARA ESCRITORIO (TABLA PRO) */}
       <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -113,8 +111,6 @@ export default function HistorialRendimientoPage() {
           </table>
         </div>
       </div>
-
-      {/* VISTA PARA MÓVIL (TARJETAS) */}
       <div className="lg:hidden space-y-4">
         {datos.length > 0 ? datos.map((item) => (
           <div key={item.id} className="bg-white p-6 rounded-[2rem] shadow-lg border border-slate-100 flex flex-col gap-4">

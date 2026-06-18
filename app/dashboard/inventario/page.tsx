@@ -1,11 +1,10 @@
-// src/app/dashboard/inventario/page.tsx
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import TablaInventario from './TablaInventario'
+import { Package } from 'lucide-react'
 
 export const dynamic = 'force-dynamic';
 
-// 🔄 Reutilizamos la misma lógica limpia para el Server Component de inventarios
 async function obtenerBodegasDeAraujos() {
   try {
     const API_BASE = "https://grupoaraujos.cloud/api/v1"
@@ -38,11 +37,10 @@ async function obtenerBodegasDeAraujos() {
     return []
   }
 }
+
 async function obtenerProductosDeAraujos() {
   try {
     const API_BASE = "https://grupoaraujos.cloud/api/v1"
-    
-    // 1. Login para obtener el token
     const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { "Content-Type": "application/json" },
@@ -54,21 +52,42 @@ async function obtenerProductosDeAraujos() {
     if (!tokenResponse.ok) return []
     const tokenData = await tokenResponse.json()
     const token = tokenData.data?.access_token || tokenData.access_token
+    let todosLosProductos: any[] = []
+    let paginaActual = 1
+    let tieneMasPaginas = true
 
-    // 2. Petición para traer los productos con stock
-    // Nota: Ajusta la ruta (/products o /items) según cómo la tenga estructurada Araujos
-    const res = await fetch(`${API_BASE}/products/`, { 
-      method: 'GET',
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-        "x-company-id": "1"
-      },
-      cache: 'no-store'
-    })
-    if (!res.ok) return []
-    const json = await res.json()
-    return json.data || []
+    while (tieneMasPaginas) {
+      const res = await fetch(`${API_BASE}/products/?page=${paginaActual}`, {
+        method: 'GET',
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "x-company-id": "1"
+        },
+        cache: 'no-store'
+      })
+
+      if (!res.ok) break;
+
+      const json = await res.json()
+      const listaProductos = json.data?.items || json.data || json.items || []
+
+      if (listaProductos.length === 0) {
+        tieneMasPaginas = false
+      } else {
+        todosLosProductos = [...todosLosProductos, ...listaProductos]
+        const ultimaPagina = json.data?.last_page || json.last_page || json.meta?.last_page || null
+
+        if (ultimaPagina && paginaActual >= ultimaPagina) {
+          tieneMasPaginas = false
+        } else {
+          paginaActual++
+        }
+      }
+      if (paginaActual > 20) break;
+    }
+
+    return todosLosProductos
   } catch (error) {
     console.error("Error trayendo productos para inventario:", error)
     return []
@@ -78,20 +97,16 @@ async function obtenerProductosDeAraujos() {
 export default async function InventarioPage() {
   const cookieStore = await cookies()
   const userId = cookieStore.get('user_id')?.value || ''
-  
-  // Consultas dinámicas concurrentes (más rápido)
   const [bodegasAraujos, configsLocales, productosAraujos] = await Promise.all([
     obtenerBodegasDeAraujos(),
     prisma.bodegaConfig.findMany(),
-    obtenerProductosDeAraujos() // <--- ¡Traemos la data real de los productos!
+    obtenerProductosDeAraujos()
   ])
-
-  // Buscamos los datos de sesión locales
+  
   const usuarioLocal = await prisma.user.findUnique({ where: { id: parseInt(userId) } })
   const rolUsuario = usuarioLocal?.rol || 'VENDEDOR'
   const nombreVendedor = usuarioLocal?.nombre || 'VENDEDOR REQUISITOS'
-
-  // Cruzamos la data inyectando el booleano dinámico de Ditcash
+  
   const bodegasMapeadasParaTabla = bodegasAraujos.map((bod: any) => {
     const configLocal = configsLocales.find(c => c.id_bodega_araujo === bod.id.toString())
     return {
@@ -102,17 +117,21 @@ export default async function InventarioPage() {
   })
 
   return (
-    <div className="p-6 md:p-10 pt-24 space-y-6">
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-        <h1 className="text-xl font-black text-[#001F3F] uppercase tracking-tight">
-          Kardex de <span className="text-[#FFB800]">Inventario</span>
-        </h1>
-      </div>
+    <div className="p-6 md:p-12 bg-[#F8FAFC] min-h-screen text-[#001F3F]">
+      <header className="flex justify-between items-end mb-10 pb-4 border-b border-slate-200">
+        <div>
+          <h1 className="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-3">
+            <Package className="text-[#FFB800]" size={28} strokeWidth={2.5} /> Kardex de Inventario
+          </h1>
+          <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">
+            Existencias sincronizadas y administración estratégica de banners
+          </p>
+        </div>
+      </header>
 
-      {/* Le pasamos la variable productosAraujos cargada con la data de la API */}
-      <TablaInventario 
+      <TablaInventario
         productosIniciales={productosAraujos}
-        bodegasAPI={bodegasMapeadasParaTabla} 
+        bodegasAPI={bodegasMapeadasParaTabla}
         nombreVendedorActual={nombreVendedor}
         rolUsuario={rolUsuario}
       />

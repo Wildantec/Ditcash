@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/app/components/Navbar';
 import Footer from '@/app/components/Footer';
+import Swal from 'sweetalert2';
 
 export default function RegisterPage() {
   const [cedula, setCedula] = useState('');
@@ -17,17 +18,29 @@ export default function RegisterPage() {
     setLoading(true);
     
     try {
-      // Aquí llamarás a la Server Action que valida contra el sistema contable
       console.log({ cedula, password, role: 'CLIENTE' });
-      
-      // Simulación de validación y creación
       setTimeout(() => {
-        router.push('/'); 
+        Swal.fire({
+          title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">Sincronización Exitosa</span>',
+          text: 'Su cuenta ha sido validada con el sistema contable.',
+          icon: 'success',
+          confirmButtonColor: '#001F3F',
+          confirmButtonText: 'CONTINUAR'
+        }).then(() => {
+          router.push('/'); 
+        });
       }, 1500);
+
     } catch (error) {
-      alert("Error al validar los datos con el sistema contable.");
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">Error de Validación</span>',
+        text: 'Error al validar los datos con el sistema contable.',
+        icon: 'error',
+        confirmButtonColor: '#001F3F',
+        confirmButtonText: 'REINTENTAR'
+      });
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 1500);
     }
   };
 
@@ -36,14 +49,10 @@ export default function RegisterPage() {
       <Navbar />
       
       <main className="flex-grow flex flex-col items-center justify-center px-4 py-8 md:py-16 relative overflow-hidden">
-        
-        {/* ELEMENTOS DECORATIVOS DE FONDO (Iguales a la Home) */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-7xl pointer-events-none hidden sm:block">
             <div className="absolute top-20 left-10 w-72 h-72 bg-[#FFB800] opacity-[0.03] rounded-full blur-[100px]" />
             <div className="absolute bottom-20 right-10 w-96 h-96 bg-[#001F3F] opacity-[0.03] rounded-full blur-[100px]" />
         </div>
-
-        {/* CONTENEDOR DE CABECERA DE REGISTRO */}
         <div className="mb-8 text-center z-10 animate-in fade-in zoom-in duration-1000">
             <h1 className="text-3xl md:text-5xl font-black text-[#001F3F] uppercase italic leading-none tracking-tighter">
               Activar <span className="text-[#FFB800]">Cuenta Web</span>
@@ -52,11 +61,7 @@ export default function RegisterPage() {
               Portal Exclusivo para Clientes Wildantec
             </p>
         </div>
-
-        {/* CARD DE REGISTRO RESPONSIVE */}
         <div className="w-full max-w-[440px] bg-white p-8 md:p-12 rounded-[2.5rem] md:rounded-[3rem] shadow-[0_50px_100px_rgba(0,31,63,0.1)] border border-white relative z-10 overflow-hidden">
-          
-          {/* Badge de estado */}
           <div className="absolute top-0 right-0">
               <div className="bg-[#001F3F] text-[#FFB800] text-[9px] font-black px-6 py-2 rounded-bl-3xl shadow-sm uppercase tracking-tighter">
                   Registro Seguro
@@ -70,7 +75,6 @@ export default function RegisterPage() {
           </div>
           
           <form onSubmit={manejarRegistro} className="space-y-5">
-            {/* CÉDULA */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
                 Cédula de Identidad
@@ -85,8 +89,6 @@ export default function RegisterPage() {
                 required
               />
             </div>
-
-            {/* CONTRASEÑA */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">
                 Crear Contraseña Web
@@ -107,13 +109,11 @@ export default function RegisterPage() {
             <button 
               type="submit"
               disabled={loading}
-              className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 bg-[#001F3F] text-[#FFB800] hover:bg-black disabled:bg-slate-100 disabled:text-slate-300`}
+              className="w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 bg-[#001F3F] text-[#FFB800] hover:bg-black disabled:bg-slate-100 disabled:text-slate-300"
             >
               {loading ? 'Verificando Cliente...' : 'Activar mi Cuenta ➔'}
             </button>
           </form>
-
-          {/* FOOTER DE LA TARJETA */}
           <div className="mt-10 pt-8 border-t border-slate-100 text-center space-y-4">
             <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
               ¿Ya activaste tu cuenta?
@@ -123,8 +123,6 @@ export default function RegisterPage() {
             </Link>
           </div>
         </div>
-
-        {/* NOTA ACLARATORIA FUERA DE LA CARD */}
         <p className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest z-10 text-center max-w-xs">
             Solo disponible para clientes registrados físicamente en Wildantec.
         </p>

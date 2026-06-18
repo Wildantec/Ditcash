@@ -6,7 +6,6 @@ import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
 import crypto from 'crypto'
 
-// CONFIGURACIÓN CLOUDINARY
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -14,9 +13,6 @@ cloudinary.config({
   secure: true
 });
 
-/**
- * REGISTRA EVIDENCIA: Con soporte para archivos optimizados
- */
 export async function registrarEvidenciaAction(formData: FormData, campanaId: string) {
   try {
     const file = formData.get('foto') as File
@@ -40,8 +36,6 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    
-    // Generamos el Hash para evitar duplicados exactos
     const hash = crypto.createHash('sha256').update(buffer).digest('hex')
     const duplicado = await prisma.evidencia.findUnique({
       where: { imageHash: hash }
@@ -50,14 +44,12 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     if (duplicado) {
       return { error: "ESTA IMAGEN YA FUE SUBIDA: Por favor toma una foto nueva de la gestión." }
     }
-
-    // SUBIDA A CLOUDINARY CON OPTIMIZACIÓN AUTOMÁTICA
     const uploadResponse: any = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { 
           folder: 'ditcash_evidencias',
           resource_type: 'image',
-          quality: "auto:good", // Optimiza el peso sin perder detalle legal
+          quality: "auto:good",
           fetch_format: "auto"
         },
         (error, result) => {
@@ -67,8 +59,6 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
       )
       uploadStream.end(buffer)
     })
-
-    // GUARDAMOS CON EL VALOR REAL DE LA CAMPAÑA
     await prisma.evidencia.create({
       data: {
         clienteNombre,
@@ -86,14 +76,9 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     return { success: true }
 
   } catch (error) {
-    console.error("Error al registrar evidencia:", error)
     return { error: "Error de conexión: La imagen es muy pesada o el internet es inestable." }
   }
 }
-
-/**
- * REVISIÓN DEL ADMIN (Aprobar/Rechazar)
- */
 export async function revisarEvidenciaAction(id: number, aprobado: boolean, motivo?: string) {
   try {
     const evidencia = await prisma.evidencia.findUnique({
@@ -124,10 +109,6 @@ export async function revisarEvidenciaAction(id: number, aprobado: boolean, moti
     return { error: "Error en la revisión" }
   }
 }
-
-/**
- * HISTORIAL Y OTROS GETTERS (DINÁMICOS)
- */
 export async function getHistorialVendedor() {
   try {
     const cookieStore = await cookies()

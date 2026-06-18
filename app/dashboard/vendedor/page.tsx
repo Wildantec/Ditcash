@@ -10,15 +10,11 @@ export default async function VendedorDashboard() {
   if (!userIdRaw) redirect('/login')
 
   const userId = parseInt(userIdRaw)
-
-  // 1. Datos del Vendedor (Traemos el nuevo campo saldoGastado)
   const vendedor = await prisma.vendedor.findUnique({
     where: { usuarioId: userId }
   })
 
   if (!vendedor) return <div className="p-20 text-center font-black uppercase tracking-widest text-slate-400">Perfil no detectado</div>
-
-  // 2. Saldo Real (Calculamos: Suma de evidencias - Saldo Gastado)
   const stats = await prisma.evidencia.aggregate({
     where: { vendedorId: vendedor.id, estado: 'aprobado' },
     _sum: { valorPagado: true },
@@ -26,11 +22,9 @@ export default async function VendedorDashboard() {
   })
 
   const ganadoTotal = Number(stats._sum.valorPagado || 0)
-  const gastadoTotal = Number(vendedor.saldoGastado || 0) // <--- Valor del nuevo campo en Prisma
-  const saldo = ganadoTotal - gastadoTotal // <--- Este es el valor que se mostrará
+  const gastadoTotal = Number(vendedor.saldoGastado || 0)
+  const saldo = ganadoTotal - gastadoTotal
   const totalAprobadas = stats._count.id
-
-  // 3. Catálogo y Meta Próxima
   const premios = await prisma.premio.findMany({
     where: { activo: true },
     orderBy: { puntos: 'asc' }
@@ -39,8 +33,6 @@ export default async function VendedorDashboard() {
   const proximoPremio = premios.find((p:any) => Number(p.puntos) > saldo) || premios[premios.length - 1];
   const metaPremio = proximoPremio ? Number(proximoPremio.puntos) : 100;
   const progresoPremio = Math.min((saldo / metaPremio) * 100, 100);
-
-  // 4. RANKING DINÁMICO (Restamos el gasto de cada uno)
   const vendedoresRaw = await prisma.vendedor.findMany({
     include: {
       evidencias: {
@@ -58,8 +50,6 @@ export default async function VendedorDashboard() {
     }))
     .sort((a: any, b: any) => b.puntosReales - a.puntosReales)
     .slice(0, 3)
-
-  // 5. Campañas Vigentes
   const campanasActivas = await prisma.campana.findMany({
     where: { activa: true },
     orderBy: { fechaInicio: 'desc' }
@@ -67,11 +57,7 @@ export default async function VendedorDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F4F7FA] p-4 md:p-12 text-[#001F3F] font-sans">
-      
-      {/* SECCIÓN SUPERIOR: SALDO Y ACCESO A PREMIOS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8 mb-8 md:mb-12">
-        
-        {/* Card de Saldo Principal */}
         <div className="lg:col-span-5 bg-[#001F3F] rounded-[2rem] md:rounded-[2.5rem] p-8 md:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col justify-center border-b-8 border-[#FFB800]">
           <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/5 rounded-full" />
           <p className="text-[10px] md:text-[11px] font-black uppercase tracking-[0.3em] md:tracking-[0.4em] text-[#FFB800] mb-4">Saldo Disponible DitCash</p>
@@ -81,8 +67,6 @@ export default async function VendedorDashboard() {
           </h2>
           <p className="text-[10px] md:text-xs font-bold uppercase mt-4 opacity-60 italic">{totalAprobadas} Validaciones verificadas</p>
         </div>
-
-        {/* Banner de Acceso al Catálogo */}
         <div className="lg:col-span-7 bg-white rounded-[2rem] md:rounded-[2.5rem] p-8 md:p-10 border border-slate-100 shadow-xl flex flex-col justify-between group">
           <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
             <div>
@@ -116,8 +100,6 @@ export default async function VendedorDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
-        
-        {/* COLUMNA DE ACCIÓN: CAMPAÑAS */}
         <div className="lg:col-span-8 space-y-6 md:space-y-10">
           <section>
             <div className="flex items-center gap-4 mb-6 md:mb-8">
@@ -158,8 +140,6 @@ export default async function VendedorDashboard() {
             </div>
           </section>
         </div>
-
-        {/* COLUMNA DE RANKING TOP */}
         <div className="lg:col-span-4">
           <div className="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 shadow-xl border border-slate-50 lg:sticky lg:top-10">
             <h3 className="text-lg md:text-xl font-black uppercase tracking-[0.2em] mb-8 md:mb-10 pb-4 border-b border-slate-100 italic text-center lg:text-left">Top DitCash</h3>

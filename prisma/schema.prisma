@@ -8,20 +8,23 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
 model User {
   id        Int      @id @default(autoincrement())
   username  String   @unique 
   cedula    String   @unique
   password  String
   nombre    String?
-  rol       String   @default("VENDEDOR") // Regresa a VENDEDOR por defecto corporativo
+  rol       String   @default("VENDEDOR") 
   estado    String   @default("Activo")
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  vendedor  Vendedor?
+  vendedor             Vendedor?
+  asignacionesVehiculo AsignacionVehiculo[]
+  registrosCombustible RegistroCombustible[]
+  rutasDiarias         RegistroRutaDiaria[]
+
   @@map("usuarios")
 }
 
@@ -99,18 +102,103 @@ model Canje {
 
 model ClienteWeb {
   id        Int      @id @default(autoincrement())
-  cedula    String   @unique // Cédula del cliente
-  password  String   // Contraseña que el cliente creará para ver sus deudas
-  nombre    String   // Nombre real importado de Grupo Araujos
+  cedula    String   @unique
+  password  String  
+  nombre    String   
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("clientes_web") // Nombre de la tabla en MySQL
+  @@map("clientes_web")
 }
 model BodegaConfig {
   id                Int      @id @default(autoincrement())
-  id_bodega_araujo  String   @unique // El ID tal cual viene del sistema de Araujos
+  id_bodega_araujo  String   @unique
   es_principal      Boolean  @default(false)
   updated_at        DateTime @updatedAt
+}
+model ProductAdvertisement {
+  id          Int      @id @default(autoincrement())
+  productCode String   @unique @map("product_code")
+  productName String   @map("product_name")        
+  title       String                               
+  imagePath   String   @map("image_path")          
+  endDate     DateTime @map("end_date")            
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("product_advertisements")
+}
+model Vehiculo {
+  id                  Int                   @id @default(autoincrement())
+  placa               String                @unique
+  marcaModelo         String                
+  kmActual            Float                 @default(0)
+  kmUltimoAceite      Float                 @default(0) 
+  intervaloAlerta     Float                 @default(5000) 
+  alertaMantenimiento Boolean               @default(false) 
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  registrosCombustible RegistroCombustible[]
+  asignaciones         AsignacionVehiculo[]
+
+  @@map("vehiculos")
+}
+model AsignacionVehiculo {
+  id          Int       @id @default(autoincrement())
+  userId      Int       
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehiculoId  Int
+  vehiculo    Vehiculo  @relation(fields: [vehiculoId], references: [id], onDelete: Cascade)
+  
+  kmEntrega   Float     
+  kmRecepcion Float?    
+  fechaInicio DateTime  @default(now())
+  fechaFin    DateTime? 
+
+  @@map("asignaciones_vehiculos")
+}
+model Gasolinera {
+  id            Int                   @id @default(autoincrement())
+  nombre        String                
+  ciudad        String                
+  tieneConvenio Boolean               @default(false)
+  createdAt     DateTime              @default(now())
+  
+  registrosCombustible RegistroCombustible[]
+
+  @@map("gasolineras")
+}
+
+model RegistroCombustible {
+  id              Int        @id @default(autoincrement())
+  userId          Int        
+  user            User       @relation(fields: [userId], references: [id])
+  vehiculoId      Int
+  vehiculo        Vehiculo   @relation(fields: [vehiculoId], references: [id])
+  gasolineraId    Int
+  gasolinera      Gasolinera @relation(fields: [gasolineraId], references: [id])
+
+  kmRecorridos    Float      
+  precioTotal     Float      
+  galones         Float      
+  numFactura      String     @unique 
+  fueraDeConvenio Boolean    @default(false)
+  fechaFactura    DateTime   
+  createdAt       DateTime   @default(now())
+
+  @@map("registros_combustible")
+}
+model RegistroRutaDiaria {
+  id           Int      @id @default(autoincrement())
+  userId       Int      
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  placaCarro   String   
+  kmRecorridos Float    
+  procesado    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@map("registros_rutas_diarias")
 }

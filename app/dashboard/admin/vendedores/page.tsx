@@ -227,8 +227,6 @@ export default function GestionVendedoresConAuditoria() {
                         </p>
                       </div>
                     )}
-
-                    {/* CAMBIO AQUÍ: LEEMOS EL VALOR REAL DE LA EVIDENCIA */}
                     {evi.estado === 'aprobado' && (
                        <p className="text-[8px] text-green-500 font-black uppercase tracking-widest mb-4 italic">
                         ✓ Acreditado +${Number(evi.valorPagado || 0).toFixed(2)}

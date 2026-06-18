@@ -17,8 +17,6 @@ export default function PantallaPremiosVendedor() {
         getPremios(),
         getSaldoVendedorAction()
       ])
-      
-      // FILTRO CRÍTICO: Solo mostramos premios que NO estén reservados
       const disponibles = (listaPremios || []).filter((p: any) => !p.reservado)
       
       setPremios(disponibles)
@@ -72,7 +70,7 @@ export default function PantallaPremiosVendedor() {
           text: 'El premio ha sido reservado para ti. El administrador lo validará pronto.',
           confirmButtonColor: '#001F3F'
         })
-        cargarDatos() // Refrescamos para que el premio desaparezca de la lista
+        cargarDatos()
       } else {
         Swal.fire('Error', res.error || 'No se pudo procesar el canje', 'error')
       }
@@ -87,8 +85,6 @@ export default function PantallaPremiosVendedor() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-12 text-[#001F3F]">
-      
-      {/* HEADER RESPONSIVE */}
       <header className="bg-white rounded-[1.5rem] md:rounded-[2rem] p-6 md:p-10 shadow-xl border border-slate-100 mb-8 md:mb-12 flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1.5 bg-[#FFB800]" />
         
@@ -106,8 +102,6 @@ export default function PantallaPremiosVendedor() {
           </p>
         </div>
       </header>
-
-      {/* GRILLA DE PREMIOS RESPONSIVE */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
         {premios.map((p) => {
           const valorPremio = Number(p.puntos);
@@ -116,8 +110,6 @@ export default function PantallaPremiosVendedor() {
 
           return (
             <div key={p.id} className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-sm hover:shadow-xl transition-all group flex flex-col h-auto sm:h-[480px]">
-              
-              {/* Imagen con Aspect Ratio controlado */}
               <div className="aspect-video sm:h-48 bg-slate-50 relative overflow-hidden">
                 <img 
                   src={p.urlImagen} 
@@ -130,8 +122,6 @@ export default function PantallaPremiosVendedor() {
                   </div>
                 )}
               </div>
-
-              {/* Contenido de la Tarjeta */}
               <div className="p-6 md:p-8 flex-grow flex flex-col justify-between">
                 <div>
                   <h3 className="text-xs md:text-sm font-black uppercase text-[#001F3F] leading-tight mb-3 line-clamp-2 italic">
@@ -149,8 +139,6 @@ export default function PantallaPremiosVendedor() {
                       <span className="text-[#FFB800] text-xs">$</span>{valorPremio.toFixed(0)}
                     </p>
                   </div>
-
-                  {/* Barra de Progreso */}
                   <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div 
                       className={`h-full transition-all duration-1000 rounded-full ${progreso >= 100 ? 'bg-green-500' : 'bg-[#001F3F]'}`}

@@ -17,7 +17,6 @@ export default function AvisoPrivacidadPage() {
         </button>
 
         <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100">
-          {/* Banner Superior Estilo DITEC */}
           <div className="bg-[#001F3F] p-8 md:p-12 text-white relative">
             <div className="absolute right-0 top-0 opacity-10 text-9xl font-black italic select-none">DITEC</div>
             <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none mb-4">Aviso de Privacidad</h1>
@@ -25,8 +24,6 @@ export default function AvisoPrivacidadPage() {
           </div>
 
           <div className="p-8 md:p-16 space-y-12">
-            
-            {/* Introducción */}
             <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 text-sm text-slate-600 leading-relaxed text-justify">
               <p>
                 El presente Aviso de Privacidad tiene por objeto informar de manera clara, previa, accesible y transparente sobre el tratamiento de datos personales realizado por <strong>DIDACTICOS Y TECNOLOGICOS WILDANTEC CIA LTDA</strong>, en cumplimiento de la Ley Orgánica de Protección de Datos Personales, su Reglamento General y la normativa aplicable emitida por la Superintendencia de Protección de Datos Personales.
@@ -34,8 +31,6 @@ export default function AvisoPrivacidadPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-slate-600">
-              
-              {/* Bloque 1: Responsable */}
               <section className="space-y-4">
                 <h2 className="text-lg font-black text-[#001F3F] uppercase italic border-b-2 border-[#FFB800] inline-block">1. Responsable del Tratamiento</h2>
                 <div className="space-y-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -45,8 +40,6 @@ export default function AvisoPrivacidadPage() {
                   <p className="text-[#001F3F] font-bold">protecciondedatos@ditec-ec.com</p>
                 </div>
               </section>
-
-              {/* Bloque 2: Delegado */}
               <section className="space-y-4">
                 <h2 className="text-lg font-black text-[#001F3F] uppercase italic border-b-2 border-[#FFB800] inline-block">2. Delegado de Protección</h2>
                 <div className="space-y-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -56,8 +49,6 @@ export default function AvisoPrivacidadPage() {
                 </div>
               </section>
             </div>
-
-            {/* Contenido Extenso */}
             <div className="space-y-10 text-sm text-slate-600 leading-relaxed text-justify">
               
               <section>

@@ -17,7 +17,6 @@ export default function PoliticaPrivacidadPrincipalPage() {
         </button>
 
         <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100">
-          {/* Banner Superior Estilo DITEC */}
           <div className="bg-[#001F3F] p-8 md:p-12 text-white relative">
             <div className="absolute right-0 top-0 opacity-10 text-9xl font-black italic select-none">DITEC</div>
             <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none mb-4">Política de Privacidad</h1>
@@ -26,16 +25,12 @@ export default function PoliticaPrivacidadPrincipalPage() {
 
           <div className="p-8 md:p-16">
             <div className="max-w-4xl mx-auto space-y-12 text-slate-600 text-sm leading-relaxed text-justify">
-              
-              {/* Introducción y Fecha */}
               <section className="border-l-4 border-[#FFB800] pl-6 py-2 bg-slate-50 rounded-r-2xl">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Última actualización: Marzo 2026</p>
                 <p>
                   En cumplimiento de la Ley Orgánica de Protección de Datos Personales, su Reglamento General y la normativa emitida por la Superintendencia de Protección de Datos Personales, <strong>DIDACTICOS Y TECNOLOGICOS WILDANTEC CIA LTDA</strong> informa a los titulares sobre el tratamiento de sus datos personales a través de esta política de privacidad.
                 </p>
               </section>
-
-              {/* Identificación del responsable */}
               <section className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border border-slate-100 p-8 rounded-3xl shadow-sm">
                 <div>
                   <h2 className="text-lg font-black text-[#001F3F] uppercase italic mb-4">Responsable del Tratamiento</h2>
@@ -48,8 +43,6 @@ export default function PoliticaPrivacidadPrincipalPage() {
                   <p className="text-[10px] text-slate-400 uppercase mt-2">Atención prioritaria LOPDP</p>
                 </div>
               </section>
-
-              {/* ¿Qué datos personales tratamos? */}
               <section>
                 <h2 className="text-2xl font-black text-[#001F3F] uppercase italic mb-6 border-b-4 border-[#FFB800] inline-block">¿Qué datos personales tratamos?</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -67,8 +60,6 @@ export default function PoliticaPrivacidadPrincipalPage() {
                   ))}
                 </div>
               </section>
-
-              {/* ¿Para qué tratamos sus datos? */}
               <section className="space-y-4">
                 <h2 className="text-2xl font-black text-[#001F3F] uppercase italic mb-2 border-b-4 border-[#FFB800] inline-block">¿Para qué tratamos sus datos?</h2>
                 <p>Tratamos sus datos para finalidades específicas y legítimas:</p>
@@ -87,8 +78,6 @@ export default function PoliticaPrivacidadPrincipalPage() {
                   ))}
                 </ul>
               </section>
-
-              {/* Base legitimadora */}
               <section>
                 <h2 className="text-2xl font-black text-[#001F3F] uppercase italic mb-6 border-b-4 border-[#FFB800] inline-block">Base legitimadora</h2>
                 <p className="mb-4">El tratamiento se sustenta en:</p>
@@ -103,8 +92,6 @@ export default function PoliticaPrivacidadPrincipalPage() {
                   </div>
                 </div>
               </section>
-
-              {/* Derechos */}
               <section>
                 <h2 className="text-2xl font-black text-[#001F3F] uppercase italic mb-6 border-b-4 border-[#FFB800] inline-block">Sus Derechos</h2>
                 <p className="mb-6">Usted puede ejercer sus derechos de Acceso, Rectificación, Eliminación, Oposición, Suspensión y Portabilidad.</p>
@@ -115,8 +102,6 @@ export default function PoliticaPrivacidadPrincipalPage() {
                   </a>
                 </div>
               </section>
-
-              {/* Seguridad */}
               <section>
                 <h2 className="text-2xl font-black text-[#001F3F] uppercase italic mb-4 border-b-4 border-[#FFB800] inline-block">Seguridad de la información</h2>
                 <p>

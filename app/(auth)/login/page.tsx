@@ -26,7 +26,6 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#001F3F] p-6 relative overflow-hidden">
-      {/* Decoración de fondo */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] aspect-square bg-[#FFB800] opacity-10 rounded-full blur-[120px]" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] aspect-square bg-white opacity-5 rounded-full blur-[120px]" />
 
@@ -78,8 +77,6 @@ export default function LoginPage() {
                 required
               />
             </div>
-
-            {/* CHECKBOX DE TÉRMINOS Y CONDICIONES */}
             <div className="flex items-start gap-3 px-2">
               <input 
                 type="checkbox" 
@@ -108,8 +105,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* FOOTER DEL LOGIN: SOLO BOTÓN REGRESAR */}
           <footer className="mt-10 text-center">
             <Link 
               href="/" 
@@ -120,8 +115,6 @@ export default function LoginPage() {
           </footer>
         </div>
       </div>
-
-      {/* MODAL CON CONTENIDO OFICIAL WILDANTEC */}
       {showModal && (
         <div className="fixed inset-0 bg-[#001F3F]/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 md:p-10 relative shadow-2xl animate-in fade-in zoom-in duration-300">

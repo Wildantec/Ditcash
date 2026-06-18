@@ -19,9 +19,7 @@ export default function GestionPremios() {
 
   useEffect(() => {
     cargarPremios()
-  }, [cargarPremios]) // Nota: Asegúrate que esta dependencia sea cargarPremios en tu código real
-
-  // Función para preparar la edición
+  }, [cargarPremios])
   const prepararEdicion = (premio: any) => {
     setEditandoId(premio.id)
     if (formRef.current) {
@@ -108,7 +106,6 @@ export default function GestionPremios() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-        {/* FORMULARIO */}
         <div className="lg:col-span-4 h-fit lg:sticky lg:top-10 order-1">
           <div className={`bg-white p-6 md:p-8 rounded-[2.5rem] shadow-xl border-2 transition-all ${editandoId ? 'border-[#FFB800]' : 'border-transparent'}`}>
             <div className="flex items-center justify-between mb-6">
@@ -152,8 +149,6 @@ export default function GestionPremios() {
             </form>
           </div>
         </div>
-
-        {/* GRILLA DE PREMIOS */}
         <div className="lg:col-span-8 order-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
             {premios.map(p => (

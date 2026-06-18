@@ -1,14 +1,33 @@
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
+import { 
+  ShieldCheck, 
+  Users, 
+  Rocket, 
+  Search, 
+  AlertCircle, 
+  Gift, 
+  TrendingUp, 
+  ArrowRight,
+  Receipt,
+  Car,
+  Fuel
+} from 'lucide-react'
 
-// Fuerza a Next.js a consultar la DB en cada carga (evita datos vacíos cacheados)
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function AdminDashboard() {
-  // 1. CONSULTA DE DATOS
-  // NOTA: Si los datos aparecen en 0, quita los .catch(() => 0) para ver el error en 'docker logs'
-  const [totalVendedores, totalCampanas, totalPremios, pendientesTotal, rankingRaw] = await Promise.all([
+  const [
+    totalVendedores, 
+    totalCampanas, 
+    totalPremios, 
+    pendientesTotal, 
+    rankingRaw,
+    totalFacturas,
+    totalVehiculos,
+    totalEstaciones
+  ] = await Promise.all([
     prisma.vendedor.count().catch(() => 0),
     prisma.campana.count().catch(() => 0),
     prisma.premio.count({ where: { activo: true } }).catch(() => 0),
@@ -22,9 +41,11 @@ export default async function AdminDashboard() {
         }
       },
     }).catch(() => []),
+    prisma.registroCombustible.count().catch(() => 0),
+    prisma.vehiculo.count().catch(() => 0),
+    prisma.gasolinera.count().catch(() => 0),
   ]);
 
-  // 2. LÓGICA DE RENDIMIENTO
   const rankingVendedores = rankingRaw
     .map((v: any) => {
       const totalVentas = v.evidencias.reduce((acc: number, curr: any) => acc + (Number(curr.valorPagado) || 0), 0);
@@ -43,82 +64,156 @@ export default async function AdminDashboard() {
       <header className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8 md:mb-12">
         <div className="text-center md:text-left">
           <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter leading-none">Panel Administrativo</h1>
-          <p className="text-slate-400 font-medium text-sm italic mt-2">DITCASH | DITEC</p>
+          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mt-2">DITCASH | CORE CENTRAL</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="bg-white px-4 md:px-6 py-3 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+          <div className="bg-white px-5 py-3 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-4">
             <div className="text-right hidden sm:block">
-              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest leading-none">Admin Principal</p>
-              <p className="text-xs font-bold text-[#001F3F] uppercase tracking-tighter">DITEC</p>
+              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">Control Maestro</p>
+              <p className="text-xs font-black text-[#001F3F] uppercase tracking-tighter mt-1">DITEC ADMIN</p>
             </div>
-            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl shadow-inner">👤</div>
+            <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-[#001F3F] shadow-inner">
+              <ShieldCheck size={18} strokeWidth={2.5} className="text-[#FFB800]" />
+            </div>
           </div>
         </div>
       </header>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-12">
-        {/* Card: Usuarios */}
+      <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4 ml-2">Módulos de Incentivos y Personal</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-10">
         <Link href="/dashboard/admin/usuarios" className="block group">
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50 flex items-center justify-between group-hover:shadow-xl transition-all duration-500 h-full">
+          <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 flex items-center justify-between group-hover:shadow-2xl transition-all duration-500 h-full">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-2xl">👥</div>
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-[#001F3F] shadow-inner group-hover:bg-[#FFB800] transition-all">
+                <Users size={18} strokeWidth={2.5} />
+              </div>
               <div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Usuarios</p>
                 <h3 className="text-3xl font-black text-[#001F3F] leading-none tracking-tighter">{totalVendedores}</h3>
               </div>
             </div>
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#001F3F] group-hover:text-[#FFB800] transition-all">
+              <ArrowRight size={14} strokeWidth={2.5} />
+            </div>
           </div>
         </Link>
 
-        {/* Card: Campañas */}
         <Link href="/dashboard/admin/campanas" className="block group">
-          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50 flex items-center justify-between group-hover:shadow-xl transition-all duration-500 h-full">
+          <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 flex items-center justify-between group-hover:shadow-2xl transition-all duration-500 h-full">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl">📢</div>
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-[#001F3F] shadow-inner group-hover:bg-[#FFB800] transition-all">
+                <Rocket size={18} strokeWidth={2.5} />
+              </div>
               <div>
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Campañas</p>
                 <h3 className="text-3xl font-black text-[#001F3F] leading-none tracking-tighter">{totalCampanas}</h3>
               </div>
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#001F3F] group-hover:text-white transition-all">➔</div>
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#001F3F] group-hover:text-[#FFB800] transition-all">
+              <ArrowRight size={14} strokeWidth={2.5} />
+            </div>
           </div>
         </Link>
 
-        {/* Card: Auditoría */}
         <Link href="/dashboard/admin/vendedores" className="block group">
-          <div className={`p-6 rounded-[2rem] shadow-sm border transition-all duration-500 flex items-center justify-between h-full ${pendientesTotal > 0 ? 'bg-orange-50 border-orange-200' : 'bg-white border-slate-50'}`}>
+          <div className={`p-6 rounded-[2rem] shadow-xl border transition-all duration-500 flex items-center justify-between h-full ${
+            pendientesTotal > 0 ? 'bg-orange-50/60 border-orange-200 shadow-orange-100/50' : 'bg-white border-slate-100'
+          }`}>
             <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-2xl ${pendientesTotal > 0 ? 'bg-orange-500 text-white animate-pulse shadow-lg shadow-orange-200' : 'bg-orange-50'}`}>
-                {pendientesTotal > 0 ? '❗' : '🔎'}
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-inner transition-all ${
+                pendientesTotal > 0 
+                  ? 'bg-orange-500 text-white animate-pulse shadow-md shadow-orange-200' 
+                  : 'bg-slate-100 text-[#001F3F] group-hover:bg-[#001F3F] group-hover:text-white'
+              }`}>
+                {pendientesTotal > 0 ? <AlertCircle size={18} strokeWidth={2.5} /> : <Search size={18} strokeWidth={2.5} />}
               </div>
               <div>
                 <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${pendientesTotal > 0 ? 'text-orange-600' : 'text-slate-400'}`}>Auditoría</p>
                 <h3 className="text-3xl font-black text-[#001F3F] leading-none tracking-tighter">{pendientesTotal}</h3>
               </div>
             </div>
-            {pendientesTotal > 0 && <span className="text-[10px] bg-orange-500 text-white px-2 py-1 rounded-lg font-black animate-bounce">NUEVO</span>}
+            {pendientesTotal > 0 && (
+              <span className="text-[8px] bg-orange-500 text-white px-2 py-1 rounded-md font-black animate-bounce tracking-widest">NUEVO</span>
+            )}
           </div>
         </Link>
 
-        {/* Card: Premios */}
         <Link href="/dashboard/admin/premios" className="block group">
-          <div className="bg-[#001F3F] p-6 rounded-[2rem] shadow-lg border-b-4 border-[#FFB800] flex items-center justify-between group-hover:shadow-2xl transition-all duration-500 h-full">
+          <div className="bg-[#001F3F] p-6 rounded-[2rem] shadow-xl border-b-4 border-[#FFB800] flex items-center justify-between group-hover:bg-black transition-all duration-500 h-full">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-2xl">🎁</div>
+              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-[#FFB800] shadow-inner">
+                <Gift size={18} strokeWidth={2.5} />
+              </div>
               <div>
                 <p className="text-[9px] font-black text-[#FFB800] uppercase tracking-widest mb-1">Catálogo</p>
                 <h3 className="text-3xl font-black text-white leading-none tracking-tighter">{totalPremios}</h3>
               </div>
             </div>
+            <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[#FFB800] group-hover:bg-[#FFB800] group-hover:text-[#001F3F] transition-all">
+              <ArrowRight size={14} strokeWidth={2.5} />
+            </div>
           </div>
         </Link>
       </div>
+      <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4 ml-2">Módulos de Contabilidad y Flota</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-12">
+        <Link href="/dashboard/admin/combustible/facturas" className="block group">
+          <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 flex items-center justify-between group-hover:shadow-2xl transition-all duration-500">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-[#001F3F] shadow-inner group-hover:bg-orange-500 group-hover:text-white transition-all">
+                <Receipt size={18} strokeWidth={2.5} />
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Comprobantes Galonaje</p>
+                <h3 className="text-2xl font-black text-[#001F3F] leading-none tracking-tighter">{totalFacturas} Facturas</h3>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#001F3F] group-hover:text-[#FFB800] transition-all">
+              <ArrowRight size={14} strokeWidth={2.5} />
+            </div>
+          </div>
+        </Link>
 
-      <div className="bg-white p-6 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] shadow-sm border border-slate-50">
+        <Link href="/dashboard/admin/combustible/vehiculos" className="block group">
+          <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 flex items-center justify-between group-hover:shadow-2xl transition-all duration-500">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-[#001F3F] shadow-inner group-hover:bg-orange-500 group-hover:text-white transition-all">
+                <Car size={18} strokeWidth={2.5} />
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Unidades Móviles</p>
+                <h3 className="text-2xl font-black text-[#001F3F] leading-none tracking-tighter">{totalVehiculos} Vehículos</h3>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#001F3F] group-hover:text-[#FFB800] transition-all">
+              <ArrowRight size={14} strokeWidth={2.5} />
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/dashboard/admin/combustible/estaciones" className="block group">
+          <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 flex items-center justify-between group-hover:shadow-2xl transition-all duration-500">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-[#001F3F] shadow-inner group-hover:bg-orange-500 group-hover:text-white transition-all">
+                <Fuel size={18} strokeWidth={2.5} />
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Puntos de Convenio</p>
+                <h3 className="text-2xl font-black text-[#001F3F] leading-none tracking-tighter">{totalEstaciones} Gasolineras</h3>
+              </div>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#001F3F] group-hover:text-[#FFB800] transition-all">
+              <ArrowRight size={14} strokeWidth={2.5} />
+            </div>
+          </div>
+        </Link>
+      </div>
+      <div className="bg-white p-6 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] shadow-xl border border-slate-100">
         <div className="flex items-center justify-between mb-8 md:mb-12">
           <div className="flex items-center gap-4">
-            <div className="w-2 h-8 md:w-2.5 md:h-10 bg-[#FFB800] rounded-full" />
-            <h2 className="text-2xl md:text-3xl font-black text-[#001F3F] tracking-tighter uppercase italic">Rendimiento de Ventas</h2>
+            <div className="w-1.5 h-8 bg-[#FFB800] rounded-full" />
+            <h2 className="text-xl md:text-2xl font-black text-[#001F3F] tracking-tighter uppercase italic flex items-center gap-3">
+              <TrendingUp className="text-[#001F3F]" size={22} strokeWidth={2.5} /> Rendimiento
+            </h2>
           </div>
         </div>
 
@@ -127,24 +222,27 @@ export default async function AdminDashboard() {
             rankingVendedores.map((v: any) => (
               <div key={v.nombre} className="group/item">
                 <div className="flex justify-between items-end mb-3">
-                  <p className="font-black text-[#001F3F] text-xs md:text-sm uppercase tracking-tight italic group-hover/item:text-[#FFB800] transition-colors">{v.nombre}</p>
-                  <p className="text-[10px] md:text-[11px] font-black text-[#001F3F] uppercase tracking-widest">
+                  <p className="font-black text-[#001F3F] text-xs md:text-sm uppercase tracking-tight italic group-hover/item:text-orange-500 transition-colors">{v.nombre}</p>
+                  <p className="text-[10px] md:text-[11px] font-black text-[#001F3F] uppercase tracking-widest font-mono">
                     ${v.puntosAcumulados.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div className="w-full h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100">
+                <div className="w-full h-3 bg-slate-50 border border-slate-100 rounded-full overflow-hidden shadow-inner">
                   <div 
-                    className="h-full bg-gradient-to-r from-[#001F3F] to-[#FFB800] rounded-full transition-all duration-1000 ease-out" 
+                    className="h-full bg-orange-500 rounded-full transition-all duration-1000 ease-out" 
                     style={{ width: `${(v.puntosAcumulados / maxPuntos) * 100}%` }} 
                   />
                 </div>
               </div>
             ))
           ) : (
-            <p className="text-slate-400 italic text-sm">No hay registros de ventas aprobados.</p>
+            <p className="text-slate-300 font-bold text-[10px] uppercase tracking-widest italic py-4">
+              No hay registros aprobados en el corte actual.
+            </p>
           )}
         </div>
       </div>
+
     </div>
   )
 }

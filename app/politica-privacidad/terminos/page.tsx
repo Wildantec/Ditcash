@@ -17,7 +17,6 @@ export default function TerminosCondicionesPage() {
         </button>
 
         <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-slate-100">
-          {/* Banner Superior Estilo DITEC */}
           <div className="bg-[#001F3F] p-8 md:p-12 text-white relative">
             <div className="absolute right-0 top-0 opacity-10 text-9xl font-black italic select-none">DITEC</div>
             <h1 className="text-3xl md:text-5xl font-black uppercase italic tracking-tighter leading-none mb-4">Términos y Condiciones</h1>

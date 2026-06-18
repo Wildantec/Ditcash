@@ -20,7 +20,6 @@ export default function DetalleCuotas({ invoiceId, salesNoteId, token, montoTota
       setError(null)
       try {
         const API_BASE = "https://grupoaraujos.cloud/api/v1"
-        // 🎯 Evaluamos cuál endpoint usar basándonos en tu documentación de captura
         const url = invoiceId 
           ? `${API_BASE}/receivables/invoices/${invoiceId}/installments`
           : `${API_BASE}/receivables/sales-notes/${salesNoteId}/installments`
@@ -41,7 +40,6 @@ export default function DetalleCuotas({ invoiceId, salesNoteId, token, montoTota
         const dataCuotas = json.data || json.items || (Array.isArray(json) ? json : [])
         setCuotas(dataCuotas)
       } catch (err: any) {
-        console.error("Error al pedir installments:", err)
         setError("No se pudo cargar el desglose de cuotas.")
       } finally {
         setCargando(false)
@@ -84,7 +82,6 @@ export default function DetalleCuotas({ invoiceId, salesNoteId, token, montoTota
         <tbody className="divide-y divide-slate-100 bg-white rounded-xl shadow-sm border border-slate-100/50 mt-1">
           {cuotas.length > 0 ? (
             cuotas.map((cuota: any, i: number) => {
-              // Mapeo adaptativo según los campos habituales de la API de Araujos
               const numeroCuota = cuota.installment_number || cuota.number || (i + 1);
               const fechaVence = cuota.date_due || cuota.due_date || "N/A";
               const totalCuota = Number(cuota.total_amount || cuota.amount || 0);

@@ -1,4 +1,3 @@
-// prisma/seed.ts
 import { prisma } from '../lib/prisma'
 import * as bcrypt from 'bcryptjs'
 
@@ -9,7 +8,7 @@ await prisma.user.upsert({
   where: { username: 'admin' },
   update: { 
     password: hashedPassword,
-    rol: 'ADMIN', // Nos aseguramos que sea ADMIN
+    rol: 'ADMIN',
     activo: true
   },
   create: {
@@ -22,8 +21,6 @@ await prisma.user.upsert({
   },
 });
   const hashedPass = await bcrypt.hash('vendedor123', 10);
-
-  // 1. Crear o actualizar el Usuario
   const userVendedor = await prisma.user.upsert({
     where: { username: 'vendedor_test' },
     update: { password: hashedPass },
@@ -36,8 +33,6 @@ await prisma.user.upsert({
       activo: true,
     },
   });
-
-  // 2. Crear o actualizar el Perfil de Vendedor vinculado
   await prisma.vendedor.upsert({
     where: { cedula: '1234567890' },
     update: { usuarioId: userVendedor.id },
@@ -45,11 +40,9 @@ await prisma.user.upsert({
       cedula: '1234567890',
       nombre: 'Vendedor Prueba',
       puntosAcumulados: 0,
-      usuarioId: userVendedor.id, // Aquí es donde se conectan
+      usuarioId: userVendedor.id,
     },
   });
-
-  console.log("✅ Vendedor y Perfil vinculados correctamente");
 }
 
 main().finally(() => prisma.$disconnect());

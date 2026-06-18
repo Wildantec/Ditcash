@@ -62,7 +62,6 @@ export default function EditarUsuarioPage({ params }: { params: Promise<{ id: st
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 md:p-10">
       
       <div className="w-full max-w-2xl">
-        {/* HEADER DEL FORMULARIO */}
         <header className="mb-8 flex items-center gap-5">
           <Link href="/dashboard/admin/usuarios" className="bg-[#001F3F] text-white p-3 rounded-2xl shadow-lg hover:bg-[#FFB800] hover:text-[#001F3F] transition-all">
             ←
@@ -72,10 +71,7 @@ export default function EditarUsuarioPage({ params }: { params: Promise<{ id: st
             <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Gestión de identidad DITCASH 2026</p>
           </div>
         </header>
-
-        {/* CUERPO DEL FORMULARIO */}
         <div className="bg-white p-10 md:p-14 rounded-[3.5rem] shadow-2xl border border-slate-100 relative overflow-hidden">
-          {/* Círculo decorativo */}
           <div className="absolute top-0 right-0 w-40 h-40 bg-[#001F3F]/5 rounded-full -mr-20 -mt-20" />
           
           <form onSubmit={handleSubmit} className="space-y-8 relative z-10">

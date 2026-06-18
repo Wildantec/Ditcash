@@ -13,7 +13,7 @@ interface Campana {
   fechaInicio: Date | string;
   fechaFin: Date | string;
   activa: boolean;
-  valor?: number; // Añadimos el campo opcional para evitar errores de tipado
+  valor?: number;
 }
 
 export default function ControlCampanasPage() {
@@ -62,8 +62,6 @@ export default function ControlCampanasPage() {
 
   return (
     <div className="p-4 md:p-10 bg-[#F8FAFC] min-h-screen text-[#001F3F]">
-      
-      {/* HEADER SUPERIOR RESPONSIVE */}
       <header className="flex flex-col sm:flex-row justify-between items-center gap-6 mb-8 pb-4 border-b border-slate-200">
         <div className="text-center sm:text-left">
           <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Control de Campañas</h1>
@@ -76,8 +74,6 @@ export default function ControlCampanasPage() {
           </button>
         </Link>
       </header>
-
-      {/* VISTA PARA ESCRITORIO (TABLA) */}
       <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
         <table className="w-full text-left border-collapse table-fixed">
           <thead>
@@ -106,7 +102,6 @@ export default function ControlCampanasPage() {
                     </p>
                   </div>
                 </td>
-                {/* COLUMNA DE VALOR */}
                 <td className="px-6 py-6 align-top text-center">
                    <div className="inline-block bg-orange-50 px-4 py-2 rounded-2xl border border-orange-100">
                       <p className="text-[14px] font-black text-[#FF8C00] italic leading-none">
@@ -153,8 +148,6 @@ export default function ControlCampanasPage() {
           </tbody>
         </table>
       </div>
-
-      {/* VISTA PARA MÓVIL Y TABLET (TARJETAS) */}
       <div className="lg:hidden flex flex-col gap-6">
         {campanas.map((c) => (
           <div key={c.id} className="bg-white rounded-[2rem] p-6 shadow-lg border border-slate-100">
@@ -202,8 +195,6 @@ export default function ControlCampanasPage() {
           </div>
         ))}
       </div>
-
-      {/* ESTADOS CARGANDO/VACÍO */}
       {loading && campanas.length === 0 && (
         <div className="p-14 text-center">
           <div className="w-8 h-8 border-4 border-[#FFB800] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>

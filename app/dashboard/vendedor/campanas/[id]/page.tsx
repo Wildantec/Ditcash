@@ -33,7 +33,6 @@ export default function RegistroEvidenciasPage({ params }: { params: Promise<{ i
     const formData = new FormData(form)
     const imageFile = formData.get('foto') as File
 
-    // Alerta con estilo Ditec
     Swal.fire({
       title: 'Optimizando Evidencia...',
       text: 'Comprimiendo imagen para asegurar el envío',
@@ -43,7 +42,6 @@ export default function RegistroEvidenciasPage({ params }: { params: Promise<{ i
 
     try {
       if (imageFile && imageFile.size > 0) {
-        // COMPRESIÓN FUERTE: 0.7MB es el punto dulce para calidad/velocidad
         const options = {
           maxSizeMB: 0.7,
           maxWidthOrHeight: 1280,
@@ -101,8 +99,6 @@ export default function RegistroEvidenciasPage({ params }: { params: Promise<{ i
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
-        
-        {/* LADO IZQUIERDO: FORMULARIO DE CAPTURA */}
         <div className="lg:col-span-4 bg-white rounded-[2.5rem] p-6 md:p-8 shadow-xl border border-slate-100 h-fit">
           <div className="flex items-center gap-2 mb-6 border-b pb-4">
             <div className="w-1.5 h-5 bg-[#FFB800] rounded-full" />
@@ -133,13 +129,10 @@ export default function RegistroEvidenciasPage({ params }: { params: Promise<{ i
                     </p>
                   </div>
                 )}
-                {/* INPUT OPTIMIZADO PARA CÁMARA TRASERA Y GALERÍA */}
                 <input 
                   type="file" 
                   name="foto" 
-                  // Cambiamos el accept para que sea más específico pero abierto
                   accept="image/jpeg, image/png, image/jpg" 
-                  // ELIMINAMOS por completo capture
                   className="absolute inset-0 opacity-0 cursor-pointer z-10" 
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
@@ -159,8 +152,6 @@ export default function RegistroEvidenciasPage({ params }: { params: Promise<{ i
             </button>
           </form>
         </div>
-
-        {/* LADO DERECHO: HISTORIAL */}
         <div className="lg:col-span-8">
           <h3 className="text-lg md:text-xl font-black mb-6 italic uppercase tracking-tighter border-l-4 border-[#001F3F] pl-4">Mis Envios Recientes</h3>
           
