@@ -165,6 +165,7 @@ model Gasolinera {
   nombre        String                
   ciudad        String                
   tieneConvenio Boolean               @default(false)
+  montoRecarga  Float                 @default(0)
   createdAt     DateTime              @default(now())
   
   registrosCombustible RegistroCombustible[]
@@ -186,6 +187,7 @@ model RegistroCombustible {
   galones         Float      
   numFactura      String     @unique 
   fueraDeConvenio Boolean    @default(false)
+  metodoPago      String     @default("CONVENIO")
   fechaFactura    DateTime   
   createdAt       DateTime   @default(now())
 

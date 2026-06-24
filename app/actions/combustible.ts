@@ -47,10 +47,11 @@ export async function registrarFacturaCombustible(data: {
   placaCarro: string      
   gasolineraId: number    
   numFactura: string     
-  precioTotal: number     
+  precioTotal: number    
   galones: number         
   fechaFactura: Date      
   metodoPago?: string
+  nombreEstacionManual?: string
 }) {
   try {
     const facturaExistente = await prisma.registroCombustible.findUnique({
@@ -61,12 +62,35 @@ export async function registrarFacturaCombustible(data: {
     }
 
     const vehiculo = await prisma.vehiculo.findUnique({ where: { placa: data.placaCarro.toUpperCase().trim() } })
-    const gasolinera = await prisma.gasolinera.findUnique({ where: { id: data.gasolineraId } })
-
     if (!vehiculo) return { success: false, error: 'Vehículo no encontrado.' }
-    if (!gasolinera) return { success: false, error: 'Gasolinera no encontrada.' }
 
-    const fueraDeConvenio = !gasolinera.tieneConvenio
+    let finalGasolineraId = data.gasolineraId
+    let fueraDeConvenio = false
+
+    // 🟢 LÓGICA COMODÍN: Si es manual (Id 0), se amarra a la cuenta centralizadora de Caja Chica
+    if (data.gasolineraId === 0 || !data.gasolineraId) {
+      fueraDeConvenio = true
+      let estCajaChica = await prisma.gasolinera.findFirst({
+        where: { nombre: 'CAJA CHICA - GASTOS MENORES' }
+      })
+
+      if (!estCajaChica) {
+        estCajaChica = await prisma.gasolinera.create({
+          data: {
+            nombre: 'CAJA CHICA - GASTOS MENORES',
+            ciudad: 'RUTAS NACIONALES',
+            tieneConvenio: true,
+            montoRecarga: 200.00 // Fondo base quincenal/mensual modificable
+          }
+        })
+      }
+      finalGasolineraId = estCajaChica.id
+    } else {
+      const gasolinera = await prisma.gasolinera.findUnique({ where: { id: data.gasolineraId } })
+      if (!gasolinera) return { success: false, error: 'Gasolinera no encontrada.' }
+      fueraDeConvenio = !gasolinera.tieneConvenio
+    }
+
     const rutasPendientes = await prisma.registroRutaDiaria.findMany({
       where: {
         userId: data.userId,
@@ -76,38 +100,37 @@ export async function registrarFacturaCombustible(data: {
     })
 
     const kmConsolidadosGPS = rutasPendientes.reduce((sum, ruta) => sum + ruta.kmRecorridos, 0)
-
+    
     await prisma.registroCombustible.create({
       data: {
         userId: data.userId,
         vehiculoId: vehiculo.id,
-        gasolineraId: gasolinera.id,
+        gasolineraId: finalGasolineraId,
         kmRecorridos: kmConsolidadosGPS > 0 ? kmConsolidadosGPS : 0,
         precioTotal: data.precioTotal,
         galones: data.galones,
         numFactura: data.numFactura.trim(),
         fueraDeConvenio: fueraDeConvenio,
+        metodoPago: data.metodoPago || (data.gasolineraId === 0 ? 'EFECTIVO' : 'CONVENIO'),
         fechaFactura: data.fechaFactura
       }
     })
+    
     if (rutasPendientes.length > 0) {
       await prisma.registroRutaDiaria.updateMany({
-        where: {
-          id: { in: rutasPendientes.map(r => r.id) }
-        },
+        where: { id: { in: rutasPendientes.map(r => r.id) } },
         data: { procesado: true }
       })
     }
 
-    return { 
-      success: true, 
-      mensaje: 'Factura asentada correctamente.',
-      auditoria: { fueraDeConvenio, kmAuditados: kmConsolidadosGPS }
-    }
+    revalidatePath('/dashboard/admin/combustible/facturas')
+    revalidatePath('/dashboard/admin/combustible/estaciones')
+    return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
 }
+
 export async function crearVehiculoAction(data: { placa: string; marcaModelo: string; kmActual: number; userId?: number }) {
   try {
     const placaNormalizada = data.placa.toUpperCase().trim()
@@ -142,29 +165,31 @@ export async function crearVehiculoAction(data: { placa: string; marcaModelo: st
     return { success: false, error: error.message }
   }
 }
-export async function crearGasolineraAction(data: { nombre: string; ciudad: string; tieneConvenio: boolean }) {
+
+export async function crearGasolineraAction(data: { nombre: string; ciudad: string; tieneConvenio: boolean; montoRecarga?: number }) {
   try {
     await prisma.gasolinera.create({
       data: {
         nombre: data.nombre.toUpperCase().trim(),
         ciudad: data.ciudad.toUpperCase().trim(),
-        tieneConvenio: data.tieneConvenio
+        tieneConvenio: data.tieneConvenio,
+        montoRecarga: data.tieneConvenio ? (data.montoRecarga ?? 0) : 0 
       }
     })
+    revalidatePath('/dashboard/admin/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
 }
+
 export async function editarVehiculoAction(id: number, data: { placa: string; marcaModelo: string; kmActual: number; userId?: number }) {
   try {
     const placaNormalizada = data.placa.toUpperCase().trim()
-    
-    const existe = await prisma.vehiculo.findFirst({
-      where: { placa: placaNormalizada, NOT: { id } }
-    })
+    const existe = await prisma.vehiculo.findFirst({ where: { placa: placaNormalizada, NOT: { id } } })
     if (existe) return { success: false, error: 'Esta placa ya está registrada en otra unidad.' }
-    const vehiculo = await prisma.vehiculo.update({
+    
+    await prisma.vehiculo.update({
       where: { id },
       data: {
         placa: placaNormalizada,
@@ -172,35 +197,7 @@ export async function editarVehiculoAction(id: number, data: { placa: string; ma
         kmActual: data.kmActual
       }
     })
-    const asignacionActual = await prisma.asignacionVehiculo.findFirst({
-      where: { vehiculoId: id, fechaFin: null }
-    })
-    if (data.userId && (!asignacionActual || asignacionActual.userId !== data.userId)) {
-      if (asignacionActual) {
-        await prisma.asignacionVehiculo.update({
-          where: { id: asignacionActual.id },
-          data: { fechaFin: new Date(), kmRecepcion: data.kmActual }
-        })
-      }
-      await prisma.asignacionVehiculo.updateMany({
-        where: { userId: data.userId, fechaFin: null },
-        data: { fechaFin: new Date(), kmRecepcion: data.kmActual }
-      })
-      await prisma.asignacionVehiculo.create({
-        data: {
-          userId: data.userId,
-          vehiculoId: id,
-          kmEntrega: data.kmActual
-        }
-      })
-    } 
-    else if (!data.userId && asignacionActual) {
-      await prisma.asignacionVehiculo.update({
-        where: { id: asignacionActual.id },
-        data: { fechaFin: new Date(), kmRecepcion: data.kmActual }
-      })
-    }
-
+    
     revalidatePath('/dashboard/admin/combustible/vehiculos')
     return { success: true }
   } catch (error: any) {
@@ -214,20 +211,21 @@ export async function eliminarVehiculoAction(id: number) {
     revalidatePath('/dashboard/admin/combustible/vehiculos')
     return { success: true }
   } catch (error: any) {
-    return { success: false, error: 'No se puede eliminar el vehículo porque contiene historiales de rutas o combustible amarrados.' }
+    return { success: false, error: 'No se puede eliminar el vehículo porque contiene historiales vinculados.' }
   }
 }
-export async function editarGasolineraAction(id: number, data: { nombre: string; ciudad: string; tieneConvenio: boolean }) {
+
+export async function editarGasolineraAction(id: number, payload: { nombre: string; ciudad: string; tieneConvenio: boolean; montoRecarga?: number }) {
   try {
     await prisma.gasolinera.update({
-      where: { id },
+      where: { id: Number(id) },
       data: {
-        nombre: data.nombre.toUpperCase().trim(),
-        ciudad: data.ciudad.toUpperCase().trim(),
-        tieneConvenio: data.tieneConvenio
+        nombre: payload.nombre.toUpperCase().trim(),
+        ciudad: payload.ciudad.toUpperCase().trim(),
+        tieneConvenio: payload.tieneConvenio,
+        montoRecarga: payload.tieneConvenio ? (payload.montoRecarga ?? 0) : 0
       }
     })
-    
     revalidatePath('/dashboard/admin/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
@@ -241,29 +239,67 @@ export async function eliminarGasolineraAction(id: number) {
     revalidatePath('/dashboard/admin/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
-    return { success: false, error: 'No se puede eliminar la estación porque tiene facturas históricas registradas.' }
+    return { success: false, error: 'No se puede eliminar la estación porque contiene historiales vinculados.' }
   }
 }
-export async function registrarInicioJornada(data: {
+
+export async function editarFacturaCombustibleAction(id: number, data: {
   userId: number
   placaCarro: string
-  kmInicial: number
+  gasolineraId: number
+  numFactura: string
+  precioTotal: number
+  galones: number
+  fechaFactura: Date
+  metodoPago: string
 }) {
   try {
-    const placaNormalizada = data.placaCarro.toUpperCase().trim()
-    const vehiculo = await prisma.vehiculo.findUnique({ where: { placa: placaNormalizada } })
+    const vehiculo = await prisma.vehiculo.findUnique({ where: { placa: data.placaCarro.toUpperCase().trim() } })
+    const gasolinera = await prisma.gasolinera.findUnique({ where: { id: data.gasolineraId } })
+
+    if (!vehiculo) return { success: false, error: 'Vehículo no encontrado.' }
     
-    if (!vehiculo) return { success: false, error: 'El vehículo no está registrado.' }
-    await prisma.registroRutaDiaria.create({
+    await prisma.registroCombustible.update({
+      where: { id: Number(id) },
       data: {
         userId: data.userId,
-        placaCarro: placaNormalizada,
-        kmRecorridos: 0,
-        procesado: false,
+        vehiculoId: vehiculo.id,
+        gasolineraId: gasolinera ? gasolinera.id : undefined,
+        precioTotal: data.precioTotal,
+        galones: data.galones,
+        numFactura: data.numFactura.trim(),
+        fueraDeConvenio: gasolinera ? !gasolinera.tieneConvenio : true,
+        fechaFactura: data.fechaFactura,
+        metodoPago: data.metodoPago
       }
     })
 
-    return { success: true, mensaje: 'Jornada matutina inicializada con éxito.' }
+    revalidatePath('/dashboard/admin/combustible/facturas')
+    revalidatePath('/dashboard/admin/combustible/estaciones')
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function eliminarFacturaCombustibleAction(id: number) {
+  try {
+    await prisma.registroCombustible.delete({ where: { id: Number(id) } })
+    revalidatePath('/dashboard/admin/combustible/facturas')
+    revalidatePath('/dashboard/admin/combustible/estaciones')
+    return { success: true }
+  } catch (error: any) {
+    return { success: false, error: error.message }
+  }
+}
+
+export async function registrarInicioJornada(data: { userId: number; placaCarro: string; kmInicial: number }) {
+  try {
+    const placaNormalizada = data.placaCarro.toUpperCase().trim()
+    await prisma.registroRutaDiaria.create({
+      data: { userId: data.userId, placaCarro: placaNormalizada, kmRecorridos: 0, procesado: false }
+    })
+    return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
   }

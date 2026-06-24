@@ -1,8 +1,8 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { consultarClienteExterno } from '@/lib/grupoAraujos';
-import BotonImprimir from '../../../components/BotonImprimir'; 
-import DetalleCuotas from '@/app/components/DetalleCuotas';
+import BotonImprimir from '../../../../components/BotonImprimir'; 
+import DetalleCuotas from '@/components/DetalleCuotas';
 
 export const dynamic = 'force-dynamic'; 
 

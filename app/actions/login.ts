@@ -27,27 +27,38 @@ export async function loginAction(formData: FormData) {
     }
 
     const cookieStore = await cookies()
+    
     cookieStore.set('user_id', user.id.toString(), {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24
     })
-    if (user.rol === 'ADMIN') {
-      urlRedireccion = '/dashboard/admin'
-    } else if (user.rol === 'MARKETING'){
-      urlRedireccion = '/dashboard/admin'
-    } else {
-      urlRedireccion = '/dashboard/vendedor'
-    }
+
+    cookieStore.set('user_role', user.rol, {
+      path: '/',
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24
+    })
+
+    urlRedireccion = '/dashboard'
 
   } catch (error: any) {
     if (isRedirectError(error)) throw error;
     return { error: "Error en el servidor administrativo" }
   }
+
   if (urlRedireccion) {
     redirect(urlRedireccion)
   }
+}
+
+export async function logoutAction() {
+  const cookieStore = await cookies()
+  cookieStore.delete('user_id')
+  cookieStore.delete('user_role')
+  redirect('/login')
 }
 
 export async function manejarFlujoClienteAction(cedula: string, passwordIngresada?: string) {

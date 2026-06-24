@@ -15,6 +15,7 @@ const inicializarArchivo = () => {
       fs.writeFileSync(rutaArchivo, JSON.stringify([], null, 2), 'utf-8');
     }
   } catch (err) {
+    console.error('Error inicializando permisos:', err);
   }
 };
 
@@ -31,34 +32,40 @@ export async function GET() {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
+
 export async function POST(request: Request) {
   try {
     inicializarArchivo();
     const body = await request.json();
-    const { rol, modulo, ver, crear, editar, eliminar } = body;
+    
+    const { rol, permisos } = body;
 
-    if (!rol || !modulo) {
-      return NextResponse.json({ success: false, message: 'Faltan campos obligatorios' }, { status: 400 });
+    if (!rol || !Array.isArray(permisos)) {
+      return NextResponse.json({ success: false, message: 'Formato de matriz de permisos inválido' }, { status: 400 });
     }
 
-    let listaPermisos = [];
+    let listaPermisosExistentes = [];
     if (fs.existsSync(rutaArchivo)) {
       const contenido = fs.readFileSync(rutaArchivo, 'utf-8');
-      listaPermisos = contenido ? JSON.parse(contenido) : [];
+      listaPermisosExistentes = contenido ? JSON.parse(contenido) : [];
     }
 
-    const index = listaPermisos.findIndex((p: any) => p.rol === rol && p.modulo === modulo);
-    const nuevoPermiso = { rol, modulo, ver, crear, editar, eliminar };
+    let nuevaLista = listaPermisosExistentes.filter((p: any) => p.role !== rol && p.rol !== rol);
 
-    if (index !== -1) {
-      listaPermisos[index] = nuevoPermiso;
-    } else {
-      listaPermisos.push(nuevoPermiso);
-    }
+    permisos.forEach((perm: any) => {
+      nuevaLista.push({
+        rol: rol,
+        modulo: perm.modulo,
+        ver: !!perm.ver,
+        crear: !!perm.crear,
+        editar: !!perm.editar,
+        eliminar: !!perm.eliminar
+      });
+    });
 
-    fs.writeFileSync(rutaArchivo, JSON.stringify(listaPermisos, null, 2), 'utf-8');
+    fs.writeFileSync(rutaArchivo, JSON.stringify(nuevaLista, null, 2), 'utf-8');
 
-    return NextResponse.json({ success: true, data: nuevoPermiso });
+    return NextResponse.json({ success: true, message: 'Matriz de control guardada con éxito' });
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }

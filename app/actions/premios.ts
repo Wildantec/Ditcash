@@ -30,9 +30,17 @@ async function uploadToCloudinary(buffer: Buffer, folder: string) {
 export async function crearPremioAction(formData: FormData) {
   try {
     const nombre = formData.get('nombre') as string
-    const puntos = parseFloat(formData.get('puntos') as string)
     const descripcion = formData.get('descripcion') as string
     const file = formData.get('foto') as File
+
+    // 🟢 CORRECCIÓN DE CAPTURA SEGURA: Lee "puntos" o lee "valor" si viene del nuevo modal flotante
+    const puntosRaw = formData.get('puntos') ?? formData.get('valor')
+    const puntos = puntosRaw ? parseFloat(puntosRaw.toString()) : 0.0
+
+    // Si por alguna razón el parseo falló y dio NaN, lo forzamos a 0.0 de forma segura
+    if (isNaN(puntos)) {
+      return { error: "El valor o puntaje ingresado no es un número válido." }
+    }
 
     if (!file || file.size === 0) return { error: "La foto es obligatoria" }
     if (file.size > 10 * 1024 * 1024) return { error: "La imagen es demasiado pesada" }
@@ -44,7 +52,7 @@ export async function crearPremioAction(formData: FormData) {
     await prisma.premio.create({
       data: {
         nombre,
-        puntos,
+        puntos, // Ahora ingresará un float limpio y real
         urlImagen: uploadResponse.secure_url,
         publicId: uploadResponse.public_id,
         descripcion: descripcion || "",
@@ -56,14 +64,16 @@ export async function crearPremioAction(formData: FormData) {
     revalidatePath('/dashboard/admin/premios')
     return { success: true }
   } catch (error: any) {
-    return { error: "Error al guardar el premio." }
+    console.error("Error real en Prisma:", error) // Nos ayuda a auditar logs en Docker
+    return { error: "Error al guardar el premio en el servidor." }
   }
 }
 
 export async function actualizarPremioAction(id: number, formData: FormData) {
   try {
+    const puntosRaw = formData.get('puntos') ?? formData.get('valor')
+    const puntos = puntosRaw ? parseFloat(puntosRaw.toString()) : 0.0
     const nombre = formData.get('nombre') as string
-    const puntos = parseFloat(formData.get('puntos') as string)
     const descripcion = formData.get('descripcion') as string
     const file = formData.get('foto') as File
     

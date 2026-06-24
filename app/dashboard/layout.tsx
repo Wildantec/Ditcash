@@ -1,4 +1,4 @@
-import SidebarSelector from '@/app/components/SidebarSelector'
+import SidebarSelector from '@/components/SidebarSelector'
 
 export default function DashboardLayout({
   children,

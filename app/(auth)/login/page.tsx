@@ -16,10 +16,23 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
     
-    const result = await loginAction(formData)
-    
-    if (result?.error) {
-      setError(result.error)
+    try {
+      const result = await loginAction(formData)
+      
+      if (result?.error) {
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+
+      // 🟢 CONTROL DE REDIRECCIÓN EN CALIENTE:
+      // Ignoramos cualquier salto interno que intente hacer la Server Action vieja
+      // y forzamos a todo el personal técnico de DITCASH a ingresar a la URL compartida plana.
+      window.location.href = '/dashboard'
+      
+    } catch (err) {
+      console.error("Error en login:", err)
+      setError("Error de comunicación con el servidor central.")
       setLoading(false)
     }
   }
@@ -77,6 +90,7 @@ export default function LoginPage() {
                 required
               />
             </div>
+
             <div className="flex items-start gap-3 px-2">
               <input 
                 type="checkbox" 
@@ -105,6 +119,7 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
           <footer className="mt-10 text-center">
             <Link 
               href="/" 
@@ -115,6 +130,7 @@ export default function LoginPage() {
           </footer>
         </div>
       </div>
+
       {showModal && (
         <div className="fixed inset-0 bg-[#001F3F]/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 md:p-10 relative shadow-2xl animate-in fade-in zoom-in duration-300">
@@ -130,7 +146,6 @@ export default function LoginPage() {
 
             <div className="max-h-80 overflow-y-auto text-[10px] text-slate-500 pr-4 space-y-4 leading-relaxed custom-scrollbar">
               <p className="italic font-bold">Última actualización: Marzo 2026</p>
-              
               <p><strong>DIDACTICOS Y TECNOLOGICOS WILDANTEC CIA LTDA</strong> (RUC: 1792490049001) informa sobre el tratamiento de sus datos personales conforme a la LOPDP.</p>
               
               <div>
@@ -149,19 +164,19 @@ export default function LoginPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-3 mt-8">
-                <button 
+              <button 
                 onClick={() => { setAceptaTerminos(true); setShowModal(false); }}
                 className="w-full py-5 bg-[#001F3F] text-[#FFB800] rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[#FFB800] hover:text-[#001F3F] transition-all shadow-lg"
-                >
+              >
                 Aceptar y Continuar
-                </button>
-                
-                <Link 
+              </button>
+              
+              <Link 
                 href="/politica-privacidad"
                 className="w-full py-4 text-center text-slate-400 font-black text-[9px] uppercase tracking-widest hover:text-[#FFB800] transition-colors"
-                >
+              >
                 Ver Política Completa ➔
-                </Link>
+              </Link>
             </div>
           </div>
         </div>
