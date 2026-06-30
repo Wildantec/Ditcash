@@ -10,6 +10,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
   secure: true
 });
+
 async function uploadToCloudinary(buffer: Buffer, folder: string) {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -27,17 +28,16 @@ async function uploadToCloudinary(buffer: Buffer, folder: string) {
     uploadStream.end(buffer)
   })
 }
+
 export async function crearPremioAction(formData: FormData) {
   try {
     const nombre = formData.get('nombre') as string
     const descripcion = formData.get('descripcion') as string
     const file = formData.get('foto') as File
 
-    // 🟢 CORRECCIÓN DE CAPTURA SEGURA: Lee "puntos" o lee "valor" si viene del nuevo modal flotante
     const puntosRaw = formData.get('puntos') ?? formData.get('valor')
     const puntos = puntosRaw ? parseFloat(puntosRaw.toString()) : 0.0
 
-    // Si por alguna razón el parseo falló y dio NaN, lo forzamos a 0.0 de forma segura
     if (isNaN(puntos)) {
       return { error: "El valor o puntaje ingresado no es un número válido." }
     }
@@ -52,7 +52,7 @@ export async function crearPremioAction(formData: FormData) {
     await prisma.premio.create({
       data: {
         nombre,
-        puntos, // Ahora ingresará un float limpio y real
+        puntos, 
         urlImagen: uploadResponse.secure_url,
         publicId: uploadResponse.public_id,
         descripcion: descripcion || "",
@@ -64,7 +64,7 @@ export async function crearPremioAction(formData: FormData) {
     revalidatePath('/dashboard/admin/premios')
     return { success: true }
   } catch (error: any) {
-    console.error("Error real en Prisma:", error) // Nos ayuda a auditar logs en Docker
+    console.error("Error real en Prisma:", error) 
     return { error: "Error al guardar el premio en el servidor." }
   }
 }
@@ -103,6 +103,7 @@ export async function actualizarPremioAction(id: number, formData: FormData) {
     return { error: "No se pudo actualizar el premio" }
   }
 }
+
 export async function getSolicitudesCanje() {
   try {
     return await prisma.canje.findMany({
@@ -131,11 +132,11 @@ export async function gestionarCanjeAction(canjeId: number, aprobado: boolean) {
       await prisma.$transaction([
         prisma.canje.update({ 
           where: { id: canjeId }, 
-          data: { estado: 'aprobado' } 
+          data: { estado: 'entregado' } 
         }),
         prisma.premio.update({ 
           where: { id: canje.premioId }, 
-          data: { activo: false, reservado: true } 
+          data: { reservado: false }
         }),
         prisma.vendedor.update({
           where: { id: canje.vendedorId },
@@ -154,20 +155,22 @@ export async function gestionarCanjeAction(canjeId: number, aprobado: boolean) {
         }),
         prisma.premio.update({
           where: { id: canje.premioId },
-          data: { reservado: false, activo: true }
+          data: { reservado: false }
         })
       ])
     }
 
     revalidatePath('/dashboard/vendedor')
-    revalidatePath('/dashboard/admin/canjes')
-    revalidatePath('/dashboard/vendedor/premios')
+    revalidatePath('/dashboard/canjes')
+    revalidatePath('/dashboard/canjes/historial')
+    revalidatePath('/dashboard/premios')
     
     return { success: true }
   } catch (error: any) {
-    return { error: "No se pudo procesar: verifica que el vendedor tenga el campo saldoGastado." }
+    return { error: "No se pudo procesar: verifica la estructura de saldos del vendedor." }
   }
 }
+
 export async function solicitarCanjeAction(premioId: number) {
   try {
     const cookieStore = await cookies()
@@ -178,23 +181,34 @@ export async function solicitarCanjeAction(premioId: number) {
       where: { usuarioId: parseInt(userId) }
     })
     if (!vendedor) return { error: "Vendedor no encontrado" }
+    
     const premio = await prisma.premio.findUnique({ where: { id: premioId } })
-    if (premio?.reservado) return { error: "Este premio ya ha sido solicitado por otro usuario." }
+    if (!premio || !premio.activo) return { error: "El premio solicitado ya no se encuentra disponible." }
+
+    const saldoVendedor = Number(vendedor.puntosAcumulados) - Number(vendedor.saldoGastado);
+    if (saldoVendedor < Number(premio.puntos)) {
+      return { error: `Saldo insuficiente. Requieres $${Number(premio.puntos).toFixed(2)} para solicitar este premio.` }
+    }
 
     await prisma.$transaction([
       prisma.canje.create({
-        data: { vendedorId: vendedor.id, premioId: premioId, estado: 'pendiente' }
+        data: { 
+          vendedorId: vendedor.id, 
+          premioId: premioId, 
+          estado: 'pendiente'
+        }
       }),
       prisma.premio.update({
         where: { id: premioId },
-        data: { reservado: true }
+        data: { reservado: false }
       })
     ])
 
     revalidatePath('/dashboard/vendedor/premios')
     return { success: true }
-  } catch (error) {
-    return { error: "No se pudo procesar la solicitud" }
+  } catch (error: any) {
+    console.error("Error en solicitarCanjeAction:", error)
+    return { error: "No se pudo procesar la solicitud de canje" }
   }
 }
 
@@ -225,13 +239,8 @@ export async function eliminarPremioAction(id: number) {
 export async function realizarCanjeAction(vendedorId: number, premioId: number) {
   try {
     const resultado = await prisma.$transaction(async (tx:any) => {
-      const premio = await tx.premio.findUnique({
-        where: { id: premioId }
-      });
-
-      const vendedor = await tx.vendedor.findUnique({
-        where: { id: vendedorId }
-      });
+      const premio = await tx.premio.findUnique({ where: { id: premioId } });
+      const vendedor = await tx.vendedor.findUnique({ where: { id: vendedorId } });
 
       if (!premio || !vendedor) {
         throw new Error("Premio o Vendedor no encontrado");
@@ -250,9 +259,7 @@ export async function realizarCanjeAction(vendedorId: number, premioId: number) 
       const vendedorActualizado = await tx.vendedor.update({
         where: { id: vendedorId },
         data: {
-          saldo: {
-            decrement: premio.costo
-          }
+          saldo: { decrement: premio.costo }
         }
       });
 
@@ -265,5 +272,71 @@ export async function realizarCanjeAction(vendedorId: number, premioId: number) 
 
   } catch (error: any) {
     return { error: error.message || "Error al procesar el canje" };
+  }
+}
+export async function procesarAprobacionConEvidenciaAction(canjeId: number, formData: FormData) {
+  try {
+    const file = formData.get('fotoEvidencia') as File
+    if (!file || file.size === 0) return { error: "La foto de la evidencia es obligatoria." }
+    const canje = await prisma.canje.findUnique({
+      where: { id: canjeId },
+      include: { premio: true, vendedor: true }
+    })
+    if (!canje) return { error: "El registro de canje ya no existe en el sistema." }
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+    const uploadResponse: any = await uploadToCloudinary(buffer, 'ditcash_entregas_evidencias')
+
+    if (!uploadResponse || !uploadResponse.secure_url) {
+      return { error: "Cloudinary no pudo procesar el almacenamiento del archivo físico." }
+    }
+    await prisma.$transaction([
+      prisma.canje.update({
+        where: { id: canjeId },
+        data: {
+          estado: 'entregado',
+          urlEvidencia: uploadResponse.secure_url,
+          publicIdEvidencia: uploadResponse.public_id
+        } as any
+      }),
+      prisma.premio.update({
+        where: { id: canje.premioId },
+        data: { reservado: false }
+      })
+    ])
+
+    revalidatePath('/dashboard/canjes')
+    revalidatePath('/dashboard/canjes/historial')
+    revalidatePath('/dashboard/vendedor/premios')
+    return { success: true }
+  } catch (error: any) {
+    console.error("ERROR EN AUDITORÍA DE ENTREGA:", error)
+    return { error: `Error interno en DITCASH: ${error.message || error}` }
+  }
+}
+export async function getHistorialEntregas() {
+  try {
+    const canjesAprobados = await prisma.canje.findMany({
+      where: {
+        estado: { in: ['aprobado', 'entregado'] }
+      },
+      include: {
+        vendedor: true,
+        premio: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return canjesAprobados.map(item => {
+      const necesitaAuditoria = !item.urlEvidencia; 
+
+      return {
+        ...item,
+        auditoriaStatus: necesitaAuditoria ? 'PENDIENTE' : 'AL_DIA'
+      };
+    });
+  } catch (error) {
+    console.error(error);
+    return [];
   }
 }

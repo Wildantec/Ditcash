@@ -27,6 +27,7 @@ export default async function DashboardAdmin() {
     prisma.vendedor.findMany({
       select: {
         nombre: true,
+        saldoGastado: true,
         evidencias: {
           where: { estado: 'aprobado' },
           select: { valorPagado: true }
@@ -37,11 +38,11 @@ export default async function DashboardAdmin() {
     prisma.vehiculo.count().catch(() => 0),
     prisma.gasolinera.count().catch(() => 0),
   ]);
-
   const rankingVendedores = rankingRaw
     .map((v: any) => {
       const totalVentas = v.evidencias.reduce((acc: number, curr: any) => acc + (Number(curr.valorPagado) || 0), 0);
-      return { nombre: v.nombre, puntosAcumulados: totalVentas || 0 };
+      const saldoDisponibleReal = totalVentas - (Number(v.saldoGastado) || 0);
+      return { nombre: v.nombre, puntosAcumulados: saldoDisponibleReal || 0 };
     })
     .sort((a: any, b: any) => b.puntosAcumulados - a.puntosAcumulados)
     .slice(0, 6);
@@ -140,8 +141,6 @@ export default async function DashboardAdmin() {
           </div>
         </Link>
       </div>
-
-      {/* SECCIÓN MÓDULOS DE CONTABILIDAD Y FLOTA */}
       <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4 ml-2">Módulos de Contabilidad y Flota</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-12">
         <Link href="/dashboard/combustible/facturas" className="block group">
@@ -201,7 +200,7 @@ export default async function DashboardAdmin() {
           <div className="flex items-center gap-4">
             <div className="w-1.5 h-8 bg-[#FFB800] rounded-full" />
             <h2 className="text-xl md:text-2xl font-black text-[#001F3F] tracking-tighter uppercase italic flex items-center gap-3">
-              <TrendingUp size={22} strokeWidth={2.5} /> Rendimiento
+              <TrendingUp size={22} strokeWidth={2.5} /> Saldo Disponible Vendedores
             </h2>
           </div>
         </div>
@@ -213,7 +212,7 @@ export default async function DashboardAdmin() {
                 <p className="text-[10px] md:text-[11px] font-black text-[#001F3F] font-mono">${v.puntosAcumulados.toFixed(2)}</p>
               </div>
               <div className="w-full h-3 bg-slate-50 border border-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-orange-500 rounded-full" style={{ width: `${(v.puntosAcumulados / maxPuntos) * 100}%` }} />
+                <div className="h-full bg-orange-500 rounded-full" style={{ width: `${Math.max(0, (v.puntosAcumulados / maxPuntos) * 100)}%` }} />
               </div>
             </div>
           ))}

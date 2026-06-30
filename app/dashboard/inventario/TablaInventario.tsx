@@ -45,8 +45,11 @@ interface TablaProps {
 
 export default function TablaInventario({ productosIniciales, bodegasAPI, nombreVendedorActual, rolUsuario }: TablaProps) {
   const nombreLimpioVendedor = nombreVendedorActual.toUpperCase().trim()
+  
+  // Guardamos los productos en un estado local persistente
   const [productos, setProductos] = useState<ProductoReal[]>(productosIniciales)
 
+  // Sincronizar con el Server Component si cambian las props globales
   useEffect(() => {
     setProductos(productosIniciales)
   }, [productosIniciales])
@@ -60,9 +63,12 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
   })
   
   const [busqueda, setBusqueda] = useState('')
-  const [estaCargando, setEstaCargando] = useState(false)
 
-  const [productoSeleccionado, setProductoSeleccionado] = useState<ProductoReal | null>(null)
+  // CORRECCIÓN 1: Separamos el producto seleccionado para el modal VER del modal CREAR/EDITAR
+  // Esto evita interferencias en el ciclo de renderizado al abrir los modales.
+  const [productoParaVer, setProductoParaVer] = useState<ProductoReal | null>(null)
+  const [productoParaEditar, setProductoParaEditar] = useState<ProductoReal | null>(null)
+  
   const [modalCrearAbierto, setModalCrearAbierto] = useState(false)
   const [modalVerAbierto, setModalVerAbierto] = useState(false)
 
@@ -70,12 +76,6 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
   const [fechaExpiracion, setFechaExpiracion] = useState('')
   const [archivoImagen, setArchivoImagen] = useState<File | null>(null)
   const [guardandoPublicidad, setGuardandoPublicidad] = useState(false)
-
-  useEffect(() => {
-    setEstaCargando(true)
-    const timer = setTimeout(() => setEstaCargando(false), 250)
-    return () => clearTimeout(timer)
-  }, [bodegaSeleccionada])
 
   const idBodegaActiva = bodegaSeleccionada || (() => {
     if (bodegasAPI && bodegasAPI.length > 0) {
@@ -85,6 +85,7 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
     return ''
   })()
 
+  // Búsqueda insensible a mayúsculas
   const productosFiltradosBase = productos.filter((prod) => {
     const termino = busqueda.toLowerCase().trim()
     return (
@@ -102,10 +103,10 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
     });
   })();
 
-  // 🟢 CORRECCIÓN LOGÍSTICA: Guardado persistente y actualización global del estado de inventarios
+  // PROCESO DE GUARDADO REPARADO
   const handleGuardarPublicidad = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!productoSeleccionado || !campanaTitulo || !fechaExpiracion || (!productoSeleccionado.publicidadAsignada && !archivoImagen)) {
+    if (!productoParaEditar || !campanaTitulo || !fechaExpiracion || (!productoParaEditar.publicidadAsignada && !archivoImagen)) {
       Swal.fire({
         title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">CAMPOS INCOMPLETOS</span>',
         text: 'Por favor complete todos los campos requeridos en el diseño del banner.',
@@ -119,35 +120,33 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
     setGuardandoPublicidad(true)
     try {
       const formData = new FormData()
-      formData.append('productCode', productoSeleccionado.code || '')
-      formData.append('productName', productoSeleccionado.name || '')
+      formData.append('productCode', productoParaEditar.code || '')
+      formData.append('productName', productoParaEditar.name || '')
       formData.append('title', campanaTitulo)
       formData.append('endDate', fechaExpiracion)
       if (archivoImagen) {
         formData.append('image', archivoImagen)
       }
 
-      const res = await fetch('/dashboard/inventario/api', {
-        method: 'POST',
-        body: formData
-      })
+      const res = await fetch('/api/inventario/publicidad', {
+      method: 'POST', 
+      body: formData
+    })
 
       const jsonResponse = await res.json()
       
       if (jsonResponse.success) {
-        // 1. Sincronizamos el estado de React localmente afectando a todas las bodegas que contengan este mismo producto
+        const publicidadActualizada = {
+          id: jsonResponse.data.id,
+          title: jsonResponse.data.title,
+          imagePath: jsonResponse.data.imagePath,
+          endDate: jsonResponse.data.endDate
+        }
+
         setProductos(prevProductos => 
           prevProductos.map(p => {
-            if (p.code === productoSeleccionado.code || p.id === productoSeleccionado.id) {
-              return {
-                ...p,
-                publicidadAsignada: {
-                  id: jsonResponse.data.id,
-                  title: jsonResponse.data.title,
-                  imagePath: jsonResponse.data.imagePath,
-                  endDate: jsonResponse.data.endDate
-                }
-              }
+            if (p.code === productoParaEditar.code) {
+              return { ...p, publicidadAsignada: publicidadActualizada }
             }
             return p
           })
@@ -157,16 +156,16 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
         setCampanaTitulo('')
         setFechaExpiracion('')
         setArchivoImagen(null)
+        setProductoParaEditar(null)
 
-        // 2. 🟢 CORRECCIÓN CLAVE: Notificación de éxito y recarga dura de la ruta para que persista al salir/entrar
         Swal.fire({
           title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">¡BANNER VINCULADO!</span>',
-          text: 'La campaña publicitaria se asignó correctamente al artículo en todo el sistema.',
+          text: 'La campaña publicitaria se asignó correctamente en todo el sistema.',
           icon: 'success',
           confirmButtonColor: '#001F3F',
           confirmButtonText: 'ENTENDIDO'
         }).then(() => {
-          window.location.reload() // Fuerza a Next.js a leer el estado fresco de Prisma
+          window.location.reload()
         })
 
       } else {
@@ -191,7 +190,7 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
   }
 
   const abrirModalCrear = (item: ProductoReal) => {
-    setProductoSeleccionado(item)
+    setProductoParaEditar(item)
     if (item.publicidadAsignada) {
       setCampanaTitulo(item.publicidadAsignada.title)
       const fechaFormateada = new Date(item.publicidadAsignada.endDate).toISOString().split('T')[0]
@@ -204,9 +203,13 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
     setModalCrearAbierto(true)
   }
 
+  const abrirModalVer = (item: ProductoReal) => {
+    setProductoParaVer(item)
+    setModalVerAbierto(true)
+  }
+
   return (
     <div className="space-y-8">
-      {/* SECCIÓN DE FILTROS SUPERIORES */}
       <div className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-6 text-[#001F3F]">
         <div className="flex flex-col gap-1.5">
           <label className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Filtro por Locación</label>
@@ -230,7 +233,7 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
             <Search size={16} className="text-slate-400" strokeWidth={2.5} />
             <input
               type="text"
-              placeholder="ESCRIBA EL NOMBRE, CÓDIGO SINC o CÓDIGO DE BARRAS DEL ARTÍCULO..."
+              placeholder="ESCRIBA EL NOMBRE, CÓDIGO SINC O CÓDIGO DE BARRAS DEL ARTÍCULO..."
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full bg-transparent text-xs text-[#001F3F] font-black uppercase tracking-wider focus:outline-none placeholder-slate-400"
@@ -239,7 +242,6 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
         </div>
       </div>
 
-      {/* RENDERIZADO DE LAS TABLAS DE KARDEX REORGANIZADO */}
       {bodegasARenderizar
         .filter(b => busqueda.trim() !== '' || b.id.toString() === idBodegaActiva)
         .map((bodega) => {
@@ -273,7 +275,6 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
                       <th className="py-5 px-10">Código Araujos</th>
                       <th className="py-5 px-6">Descripción del Artículo</th>
                       <th className="py-5 px-6 text-center">Stock Físico</th>
-                      {/* 🟢 REMOVIDO: Se eliminó la cabecera del precio de venta */}
                       <th className="py-5 px-6 text-center">Variaciones Escala</th>
                       <th className="py-5 px-6 text-center">Medida</th>
                       <th className="py-5 px-10 text-right">Estrategia Publicitaria</th>
@@ -311,7 +312,6 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
                               {stockFinalVisual.toFixed(2)}
                             </span>
                           </td>
-                          {/* 🟢 REMOVIDO: Se eliminó la celda que renderizaba el unit_price */}
                           <td className="py-5 px-6 text-center">
                             {item.prices && item.prices.length > 0 ? (
                               <select className="bg-slate-50 border border-slate-200 text-[#001F3F] font-black text-[9px] rounded-lg p-1.5 focus:outline-none uppercase tracking-wider cursor-pointer shadow-sm">
@@ -329,13 +329,15 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
                             {tienePublicidad ? (
                               <div className="flex justify-end items-center gap-4">
                                 <button 
-                                  onClick={() => { setProductoSeleccionado(item); setModalVerAbierto(true); }}
+                                  type="button"
+                                  onClick={() => abrirModalVer(item)}
                                   className="text-[10px] font-black text-blue-500 uppercase tracking-widest border-b-2 border-transparent hover:border-blue-500 transition-colors pb-0.5"
                                 >
                                   Ver Banner
                                 </button>
                                 {(rolUsuario === 'ADMIN' || rolUsuario === 'MARKETING') && (
                                   <button 
+                                    type="button"
                                     onClick={() => abrirModalCrear(item)}
                                     className="text-[10px] font-black text-slate-500 uppercase tracking-widest border-b-2 border-transparent hover:border-[#001F3F] text-[#001F3F] transition-colors pb-0.5"
                                   >
@@ -346,6 +348,7 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
                             ) : (
                               (rolUsuario === 'ADMIN' || rolUsuario === 'MARKETING') ? (
                                 <button 
+                                  type="button"
                                   onClick={() => abrirModalCrear(item)}
                                   className="text-[10px] font-black text-emerald-500 uppercase tracking-widest border-b-2 border-transparent hover:border-emerald-500 transition-colors pb-0.5 inline-flex items-center gap-1"
                                 >
@@ -366,43 +369,40 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
           )
         })}
 
-      {/* MODAL 1: VER PIEZA GRÁFICA */}
-      {modalVerAbierto && productoSeleccionado?.publicidadAsignada && (
+      {modalVerAbierto && productoParaVer?.publicidadAsignada && (
         <div className="fixed inset-0 bg-[#001F3F]/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
           <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-lg w-full border border-slate-100 flex flex-col">
             <div className="bg-[#001F3F] px-8 py-5 text-white flex justify-between items-center border-b border-white/10">
               <div>
-                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-[#FFB800]">{productoSeleccionado.publicidadAsignada.title}</h3>
-                <p className="text-[10px] text-slate-400 font-mono font-bold tracking-wider mt-0.5">REF: {productoSeleccionado.name?.toUpperCase()}</p>
+                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-[#FFB800]">{productoParaVer.publicidadAsignada.title}</h3>
+                <p className="text-[10px] text-slate-400 font-mono font-bold tracking-wider mt-0.5">REF: {productoParaVer.name?.toUpperCase()}</p>
               </div>
-              <button onClick={() => setModalVerAbierto(false)} className="text-slate-400 hover:text-white transition-colors p-2">
+              <button onClick={() => { setModalVerAbierto(false); setProductoParaVer(null); }} className="text-slate-400 hover:text-white transition-colors p-2">
                 <X size={18} strokeWidth={2.5} />
               </button>
             </div>
             <div className="p-8 flex flex-col items-center justify-center bg-slate-50">
               <img 
-                src={productoSeleccionado.publicidadAsignada.imagePath} 
+                src={productoParaVer.publicidadAsignada.imagePath} 
                 alt="Banner Publicitario" 
                 className="max-w-full h-auto rounded-2xl shadow-xl border border-white object-contain max-h-[320px] bg-white p-2"
               />
               <div className="flex items-center gap-2 mt-6 text-slate-400 font-bold text-[11px] uppercase tracking-widest bg-white border border-slate-100 px-4 py-2 rounded-xl shadow-sm">
                 <Calendar size={13} className="text-red-400" strokeWidth={2.5} />
-                <span>Expira: <span className="text-red-500 font-mono font-black">{new Date(productoSeleccionado.publicidadAsignada.endDate).toLocaleDateString('es-EC')}</span></span>
+                <span>Expira: <span className="text-red-500 font-mono font-black">{new Date(productoParaVer.publicidadAsignada.endDate).toLocaleDateString('es-EC')}</span></span>
               </div>
             </div>
           </div>
         </div>
       )}
-
-      {/* MODAL 2: VINCULAR/DISEÑAR PUBLICIDAD */}
-      {modalCrearAbierto && productoSeleccionado && (
+      {modalCrearAbierto && productoParaEditar && (
         <div className="fixed inset-0 bg-[#001F3F]/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
           <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-md w-full border border-slate-100">
             <div className="bg-[#001F3F] px-8 py-5 text-white flex justify-between items-center border-b border-white/10">
               <h3 className="font-black text-xs uppercase tracking-[0.2em] text-[#FFB800]">
-                {productoSeleccionado.publicidadAsignada ? 'Ajustar' : 'Diseñar'} Campaña
+                {productoParaEditar.publicidadAsignada ? 'Ajustar' : 'Diseñar'} Campaña
               </h3>
-              <button onClick={() => setModalCrearAbierto(false)} className="text-slate-400 hover:text-white transition-colors p-2">
+              <button onClick={() => { setModalCrearAbierto(false); setProductoParaEditar(null); }} className="text-slate-400 hover:text-white transition-colors p-2">
                 <X size={18} strokeWidth={2.5} />
               </button>
             </div>
@@ -411,7 +411,7 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Artículo Amarrado</label>
                 <div className="relative flex items-center">
                   <Package size={14} className="absolute left-4 text-slate-400" strokeWidth={2.5} />
-                  <input type="text" disabled value={`[${productoSeleccionado.code}] ${productoSeleccionado.name}`} className="w-full bg-slate-50 p-3 pl-11 text-xs font-black text-slate-400 border border-slate-200 rounded-xl focus:outline-none uppercase tracking-wide" />
+                  <input type="text" disabled value={`[${productoParaEditar.code}] ${productoParaEditar.name}`} className="w-full bg-slate-50 p-3 pl-11 text-xs font-black text-slate-400 border border-slate-200 rounded-xl focus:outline-none uppercase tracking-wide" />
                 </div>
               </div>
               <div>
@@ -430,11 +430,11 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
               </div>
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
-                  Pieza Gráfica {productoSeleccionado.publicidadAsignada && '(OPCIONAL SI MANTIENE)'} *
+                  Pieza Gráfica {productoParaEditar.publicidadAsignada && '(OPCIONAL SI MANTIENE)'} *
                 </label>
                 <div className="relative flex items-center">
                   <ImageIcon size={14} className="absolute left-4 text-slate-400" strokeWidth={2.5} />
-                  <input type="file" required={!productoSeleccionado.publicidadAsignada} accept="image/*" onChange={(e) => setArchivoImagen(e.target.files?.[0] || null)} className="w-full text-[11px] font-black text-slate-500 bg-slate-50 border border-slate-200 p-3 pl-11 rounded-xl file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[9px] file:font-black file:bg-[#001F3F] file:text-[#FFB800] file:uppercase file:tracking-widest cursor-pointer shadow-inner" />
+                  <input type="file" required={!productoParaEditar.publicidadAsignada} accept="image/*" onChange={(e) => setArchivoImagen(e.target.files?.[0] || null)} className="w-full text-[11px] font-black text-slate-500 bg-slate-50 border border-slate-200 p-3 pl-11 rounded-xl file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[9px] file:font-black file:bg-[#001F3F] file:text-[#FFB800] file:uppercase file:tracking-widest cursor-pointer shadow-inner" />
                 </div>
               </div>
               <button type="submit" disabled={guardandoPublicidad} className="w-full bg-[#001F3F] text-[#FFB800] border border-[#001F3F] font-black text-xs uppercase py-4 rounded-xl transition-all shadow-md active:scale-95 disabled:opacity-50 tracking-widest flex items-center justify-center gap-2 mt-2 hover:bg-slate-800 transition-colors">

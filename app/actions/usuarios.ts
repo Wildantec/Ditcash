@@ -23,6 +23,7 @@ async function obtenerTokenAraujo(): Promise<string | null> {
     return null;
   }
 }
+
 async function verificarVendedorEnAraujo(cedula: string, token: string): Promise<{ existe: boolean; nombre?: string; apellido?: string }> {
   try {
     const apiUrl = process.env.API_CONTABLE_URL || "https://grupoaraujos.cloud";
@@ -50,6 +51,7 @@ async function verificarVendedorEnAraujo(cedula: string, token: string): Promise
     return { existe: false };
   }
 }
+
 export async function crearUsuarioAction(data: {
   username: string
   cedula: string
@@ -59,6 +61,7 @@ export async function crearUsuarioAction(data: {
   try {
     const cedulaLimpia = data.cedula.trim();
     const usernameLimpio = data.username.trim();
+    
     const usuarioExistente = await prisma.user.findFirst({
       where: { OR: [{ username: usernameLimpio }, { cedula: cedulaLimpia }] }
     });
@@ -66,6 +69,7 @@ export async function crearUsuarioAction(data: {
     if (usuarioExistente) {
       return { success: false, error: 'El nombre de usuario o número de cédula ya se encuentra registrado en DITCASH.' };
     }
+
     if (data.rol === 'VENDEDOR') {
       const tokenAraujo = await obtenerTokenAraujo();
       if (!tokenAraujo) {
@@ -84,6 +88,7 @@ export async function crearUsuarioAction(data: {
         data.nombreCompleto = `${validacionAraujo.nombre} ${validacionAraujo.apellido || ''}`.trim().toUpperCase();
       }
     }
+
     const nuevoUsuario = await prisma.user.create({
       data: {
         username: usernameLimpio,
@@ -95,6 +100,7 @@ export async function crearUsuarioAction(data: {
         activo: true
       }
     });
+
     if (data.rol === 'VENDEDOR') {
       const partesNombre = data.nombreCompleto.split(' ');
       const primerNombre = partesNombre[0] || 'VENDEDOR';
@@ -119,12 +125,10 @@ export async function crearUsuarioAction(data: {
     return { success: false, error: `Error en el servidor: ${error.message}` };
   }
 }
+
 export async function getUsuariosAction() {
   try {
     const usuarios = await prisma.user.findMany({
-      where: {
-        rol: { in: ['ADMIN', 'VENDEDOR', 'MARKETING'] }
-      },
       include: {
         vendedor: true
       },
@@ -168,23 +172,35 @@ export async function getUsuarioByIdAction(id: number) {
 
 export async function actualizarUsuarioAction(id: number, data: any) {
   try {
+    const usuarioConVendedor = await prisma.user.findUnique({
+      where: { id },
+      include: { vendedor: true }
+    });
+
+    const updateData: any = {
+      cedula: data.cedula,
+      rol: data.rol,
+      activo: data.activo,
+      nombre: data.nombre.toUpperCase()
+    };
+    if (usuarioConVendedor?.vendedor) {
+      updateData.vendedor = {
+        update: {
+          nombre: data.nombre.toUpperCase(),
+          cedula: data.cedula
+        }
+      };
+    }
+
     await prisma.user.update({
       where: { id },
-      data: {
-        cedula: data.cedula,
-        rol: data.rol,
-        activo: data.activo,
-        vendedor: {
-          update: {
-            nombre: data.nombre.toUpperCase()
-          }
-        }
-      }
-    })
-    revalidatePath('/dashboard/admin/usuarios')
-    return { success: true }
-  } catch (error) {
-    return { success: false, error: 'No se pudo actualizar los datos' }
+      data: updateData
+    });
+
+    revalidatePath('/dashboard/admin/usuarios');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: `Error de actualización: ${error.message || 'Restricción de base de datos.'}` };
   }
 }
 

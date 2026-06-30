@@ -91,13 +91,16 @@ model Premio {
 }
 
 model Canje {
-  id         Int      @id @default(autoincrement())
-  vendedorId Int
-  premioId   Int
-  vendedor   Vendedor @relation(fields: [vendedorId], references: [id])
-  premio     Premio   @relation(fields: [premioId], references: [id])
-  estado     String   @default("pendiente") 
-  createdAt  DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  vendedorId    Int
+  premioId      Int
+  vendedor      Vendedor @relation(fields: [vendedorId], references: [id])
+  premio        Premio   @relation(fields: [premioId], references: [id])
+  estado        String   @default("pendiente") // "pendiente", "aprobado", "entregado", "rechazado"
+  urlEvidencia  String?  @db.Text
+  publicIdEvidencia String?
+  
+  createdAt     DateTime @default(now())
 }
 
 model ClienteWeb {

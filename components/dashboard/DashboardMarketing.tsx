@@ -24,6 +24,7 @@ export default async function DashboardMarketing() {
     prisma.vendedor.findMany({
       select: {
         nombre: true,
+        saldoGastado: true,
         evidencias: {
           where: { estado: 'aprobado' },
           select: { valorPagado: true }
@@ -35,7 +36,8 @@ export default async function DashboardMarketing() {
   const rankingVendedores = rankingRaw
     .map((v: any) => {
       const totalVentas = v.evidencias.reduce((acc: number, curr: any) => acc + (Number(curr.valorPagado) || 0), 0);
-      return { nombre: v.nombre, puntosAcumulados: totalVentas || 0 };
+      const saldoDisponibleReal = totalVentas - (Number(v.saldoGastado) || 0);
+      return { nombre: v.nombre, puntosAcumulados: saldoDisponibleReal || 0 };
     })
     .sort((a: any, b: any) => b.puntosAcumulados - a.puntosAcumulados)
     .slice(0, 6);
@@ -134,12 +136,13 @@ export default async function DashboardMarketing() {
           </div>
         </Link>
       </div>
+
       <div className="bg-white p-6 md:p-12 rounded-[2.5rem] md:rounded-[3.5rem] shadow-xl border border-slate-100">
         <div className="flex items-center justify-between mb-8 md:mb-12">
           <div className="flex items-center gap-4">
             <div className="w-1.5 h-8 bg-[#FFB800] rounded-full" />
             <h2 className="text-xl md:text-2xl font-black text-[#001F3F] tracking-tighter uppercase italic flex items-center gap-3">
-              <TrendingUp size={22} strokeWidth={2.5} /> Rendimiento vendedores
+              <TrendingUp size={22} strokeWidth={2.5} /> Saldo Disponible Vendedores
             </h2>
           </div>
         </div>
@@ -151,7 +154,7 @@ export default async function DashboardMarketing() {
                 <p className="text-[10px] md:text-[11px] font-black text-[#001F3F] font-mono">${v.puntosAcumulados.toFixed(2)}</p>
               </div>
               <div className="w-full h-3 bg-slate-50 border border-slate-100 rounded-full overflow-hidden">
-                <div className="h-full bg-orange-500 rounded-full" style={{ width: `${(v.puntosAcumulados / maxPuntos) * 100}%` }} />
+                <div className="h-full bg-orange-500 rounded-full" style={{ width: `${Math.max(0, (v.puntosAcumulados / maxPuntos) * 100)}%` }} />
               </div>
             </div>
           ))}

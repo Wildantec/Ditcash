@@ -102,8 +102,9 @@ export async function revisarEvidenciaAction(id: number, aprobado: boolean, moti
         data: { estado: 'rechazado', motivoRechazo: motivo || "No cumple requisitos" }
       })
     }
-
-    revalidatePath('/dashboard/admin/vendedores')
+    revalidatePath('/dashboard')
+    revalidatePath('/dashboard/vendedores')
+    revalidatePath('/dashboard/campanas')
     return { success: true }
   } catch (error) {
     return { error: "Error en la revisión" }
@@ -113,12 +114,14 @@ export async function getHistorialVendedor() {
   try {
     const cookieStore = await cookies()
     const userId = cookieStore.get('user_id')?.value
-    if (!userId) return []
+    if (!userId) return { campanas: [], saldoDisponible: 0 }
 
     const vendedor = await prisma.vendedor.findUnique({
       where: { usuarioId: parseInt(userId) }
     })
-    if (!vendedor) return []
+    if (!vendedor) return { campanas: [], saldoDisponible: 0 }
+
+    const saldoNetoReal = (Number(vendedor.puntosAcumulados) || 0) - (Number(vendedor.saldoGastado) || 0);
 
     const campanas = await prisma.campana.findMany({
       orderBy: { fechaInicio: 'desc' }
@@ -128,12 +131,12 @@ export async function getHistorialVendedor() {
       where: { vendedorId: vendedor.id }
     })
 
-    return campanas.map((c:any) => {
-      const aprobadas = evidencias.filter((e:any) => 
+    const listaCampanas = campanas.map((c: any) => {
+      const aprobadas = evidencias.filter((e: any) => 
         e.campanaId === c.id && e.estado === 'aprobado'
       )
       
-      const total = aprobadas.reduce((sum:any, e:any) => sum + (Number(e.valorPagado) || 0), 0)
+      const total = aprobadas.reduce((sum: any, e: any) => sum + (Number(e.valorPagado) || 0), 0)
 
       return {
         id: c.id,
@@ -145,8 +148,13 @@ export async function getHistorialVendedor() {
         puesto: total > 0 ? "Registrado" : "Sin actividad"
       }
     })
+
+    return {
+      campanas: listaCampanas,
+      saldoDisponible: saldoNetoReal
+    }
   } catch (error) {
-    return []
+    return { campanas: [], saldoDisponible: 0 }
   }
 }
 

@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { getVendedoresRanking } from '@/app/actions/vendedores'
 import { getEvidenciasByVendedor, revisarEvidenciaAction, eliminarEvidenciaAction } from '@/app/actions/evidencias'
 import Swal from 'sweetalert2'
-import { Search, ArrowLeft, Download, Trash2, Check, X } from 'lucide-react' 
+import { Search, ArrowLeft, Trash2, Check, X } from 'lucide-react' 
+
 export default function GestionVendedoresConAuditoria() {
   const [vendedores, setVendedores] = useState<any[]>([])
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<any>(null)
@@ -43,6 +44,50 @@ export default function GestionVendedoresConAuditoria() {
 
   useEffect(() => { inicializar() }, []) 
   useEffect(() => { cargarEvidencias() }, [cargarEvidencias])
+
+const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
+    Swal.fire({
+      title: `<span style="font-size:15px; font-weight:900; color:#001F3F; text-transform:uppercase; letter-spacing:0.05em;">Visualizador de Auditoría</span>`,
+      html: `
+        <div style="text-align: center; margin-top: 10px;">
+          <p style="font-size:11px; text-transform:uppercase; font-weight:bold; color:gray; margin-bottom:15px;">
+            Cliente: ${clienteNombre.toUpperCase()}
+          </p>
+          <div style="border-radius: 1.5rem; overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); border: 1px solid #f1f5f9; background: #f8fafc; max-height: 60vh; display: flex; items-center; justify-content: center;">
+            <img src="${url}" style="max-width: 100%; max-height: 60vh; object-fit: contain;" alt="Evidencia Campaña Ditec" />
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonColor: '#001F3F',
+      cancelButtonColor: '#475569',
+      confirmButtonText: 'DESCARGAR ARCHIVO ↓',
+      cancelButtonText: 'CERRAR',
+      customClass: {
+        popup: 'rounded-[2.5rem] p-6 max-w-2xl',
+        confirmButton: 'custom-swal-confirm-btn',
+        cancelButton: 'custom-swal-cancel-btn'
+      },
+      willOpen: () => {
+        const style = document.createElement('style')
+        style.innerHTML = `
+          .custom-swal-confirm-btn { font-weight: 900 !important; font-size: 11px !important; tracking-spacing: 0.05em !important; padding: 14px 24px !important; border-radius: 12px !important; text-transform: uppercase !important; }
+          .custom-swal-cancel-btn { font-weight: 900 !important; font-size: 11px !important; tracking-spacing: 0.05em !important; padding: 14px 24px !important; border-radius: 12px !important; text-transform: uppercase !important; }
+        `
+        document.head.appendChild(style)
+      }
+    }).then((result) => {
+      if (result.isConfirmed) {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `DIT_EVIDENCIA_${clienteNombre.toUpperCase().replace(/\s+/g, '_')}.jpg`
+        link.target = '_blank'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
+    })
+  }
 
   const handleRevisar = async (id: number, aprobado: boolean) => {
     let motivo = ""
@@ -86,14 +131,6 @@ export default function GestionVendedoresConAuditoria() {
         await inicializar()
       }
     }
-  }
-
-  const handleDownload = (url: string, nombre: string) => {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `Ditec_Evidencia_${nombre}.jpg`
-    link.target = "_blank"
-    link.click()
   }
 
   if (loading && vendedores.length === 0) return (
@@ -212,17 +249,16 @@ export default function GestionVendedoresConAuditoria() {
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {evidencias.map((evi: any) => (
                 <div key={evi.id} className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-lg flex flex-col group transition-all">
-                  <div className="aspect-square bg-slate-100 relative overflow-hidden">
+                  
+                  {/* 🟢 SE AÑADIÓ ONCLICK PARA ZOOM Y SE DEJA EL ELIMINAR LIMPIO */}
+                  <div 
+                    onClick={() => expandirEvidenciaAuditoria(evi.urlImagen, evi.clienteNombre)}
+                    className="aspect-square bg-slate-100 relative overflow-hidden cursor-zoom-in"
+                  >
                     <img src={evi.urlImagen} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="evidencia" />
                     
-                    <div className="absolute top-3 right-3 flex flex-col gap-2">
-                        <button 
-                          onClick={() => handleDownload(evi.urlImagen, evi.clienteNombre)} 
-                          title="Descargar"
-                          className="bg-white/90 backdrop-blur text-blue-600 w-8 h-8 rounded-xl flex items-center justify-center shadow-md transition-colors hover:bg-[#001F3F] hover:text-white"
-                        >
-                          <Download size={14} />
-                        </button>
+                    <div className="absolute top-3 right-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                        {/* 🟢 Botón de descarga removido con éxito de la botonera flotante superior */}
                         <button 
                           onClick={() => handleEliminar(evi.id)} 
                           title="Eliminar"
@@ -257,7 +293,7 @@ export default function GestionVendedoresConAuditoria() {
                     )}
 
                     {evi.estado === 'pendiente' && (
-                      <div className="flex gap-2 mt-auto">
+                      <div className="flex gap-2 mt-auto" onClick={(e) => e.stopPropagation()}>
                         <button 
                           onClick={() => handleRevisar(evi.id, true)} 
                           className="flex-1 bg-green-500 text-white py-2.5 rounded-xl text-[8px] font-black uppercase shadow-md active:scale-95 transition-all flex justify-center items-center gap-1 hover:bg-green-600"

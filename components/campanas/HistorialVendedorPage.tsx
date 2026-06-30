@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getHistorialVendedor } from '@/app/actions/evidencias'
+import { Wallet, Search } from 'lucide-react'
 
 interface HistorialVendedorProps {
   accionesPermitidas: {
@@ -14,12 +15,14 @@ interface HistorialVendedorProps {
 
 export default function HistorialVendedorPage({ accionesPermitidas }: HistorialVendedorProps) {
   const [datos, setDatos] = useState<any[]>([])
+  const [saldo, setSaldo] = useState<number>(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function cargarHistorial() {
       const res = await getHistorialVendedor()
-      setDatos(res || [])
+      setDatos(res?.campanas || [])
+      setSaldo(res?.saldoDisponible || 0)
       setLoading(false)
     }
     cargarHistorial()
@@ -34,12 +37,24 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-10 text-[#001F3F]">
       <header className="mb-8 md:mb-10 pb-4 border-b border-slate-200 text-center md:text-left">
-        <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Historial de Campañas</h1>
+        <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter flex items-center justify-center md:justify-start gap-2">
+          <Search className="text-[#FFB800]" size={24} strokeWidth={3} /> Historial de Campañas
+        </h1>
         <p className="text-slate-400 font-bold mt-1 text-[10px] md:text-[11px] uppercase tracking-[0.2em] opacity-70">
           Rendimiento y ganancias acumuladas en Ditec
         </p>
       </header>
-
+      <div className="mb-8 bg-[#001F3F] text-white p-6 rounded-[2rem] shadow-xl border-b-4 border-[#FFB800] max-w-sm flex items-center justify-between group hover:bg-black transition-all duration-300">
+        <div>
+          <p className="text-[9px] font-black text-[#FFB800] uppercase tracking-widest mb-1">Mi Billetera Virtual</p>
+          <h3 className="text-3xl font-black text-white leading-none tracking-tighter flex items-center gap-0.5">
+            <span className="text-[#FFB800] text-xl">$</span>{saldo.toFixed(2)}
+          </h3>
+        </div>
+        <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-[#FFB800]">
+          <Wallet size={20} strokeWidth={2.5} />
+        </div>
+      </div>
       <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -89,7 +104,6 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
                   </td>
 
                   <td className="px-10 py-8 text-right">
-                    {/* 🟢 CORRECCIÓN: Apunta a la nueva ruta global unificada limpia */}
                     <Link href={`/dashboard/campanas/${item.id}`}>
                       <button className="bg-[#001F3F] text-[#FFB800] px-6 py-3 rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-[#FFB800] hover:text-[#001F3F] transition-all shadow-md active:scale-95 border-b-2 border-[#FFB800]/20">
                         Ver Mi Gestión ➔
@@ -110,8 +124,6 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
           </table>
         </div>
       </div>
-
-      {/* VISTA MÓVIL DISPOSITIVOS */}
       <div className="lg:hidden space-y-4">
         {datos.length > 0 ? datos.map((item) => (
           <div key={item.id} className="bg-white p-6 rounded-[2rem] shadow-lg border border-slate-100 flex flex-col gap-4">
@@ -139,7 +151,6 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
               </div>
             </div>
 
-            {/* 🟢 CORRECCIÓN MÓVIL: Apunta a la ruta compartida limpia */}
             <Link href={`/dashboard/campanas/${item.id}`}>
               <button className="w-full bg-[#001F3F] text-[#FFB800] py-4 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] shadow-md">
                 Ver Detalles de Gestión ➔

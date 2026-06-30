@@ -1,17 +1,20 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { IdCard, ShieldCheck, User, Key, Loader2, ChevronDown, Users, Briefcase } from 'lucide-react'
+import { IdCard, ShieldCheck, User, Key, Loader2, ChevronDown, Users, Briefcase,FileSpreadsheet, Wallet, FileText, Wrench } from 'lucide-react'
 import Swal from 'sweetalert2'
 
 interface CrearUsuarioProps {
   onSuccess?: () => void;
 }
-
 const ROLES = [
-  { value: 'VENDEDOR', label: 'VENDEDOR', icon: Briefcase },
   { value: 'ADMIN', label: 'ADMINISTRADOR', icon: ShieldCheck },
   { value: 'MARKETING', label: 'MARKETING', icon: Users },
+  { value: 'VENDEDOR', label: 'VENDEDOR', icon: Briefcase },
+  { value: 'CONTABILIDAD', label: 'CONTABILIDAD', icon: FileSpreadsheet },
+  { value: 'COBRANZAS', label: 'COBRANZAS', icon: Wallet },
+  { value: 'FACTURACION', label: 'FACTURACIÓN', icon: FileText },
+  { value: 'SERVICIO_TECNICO', label: 'SERVICIO TÉCNICO', icon: Wrench }
 ]
 
 export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {

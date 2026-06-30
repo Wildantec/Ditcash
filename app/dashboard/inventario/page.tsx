@@ -97,10 +97,12 @@ async function obtenerProductosDeAraujos() {
 export default async function InventarioPage() {
   const cookieStore = await cookies()
   const userId = cookieStore.get('user_id')?.value || ''
-  const [bodegasAraujos, configsLocales, productosAraujos] = await Promise.all([
+  
+  const [bodegasAraujos, configsLocales, productosAraujos, bannersLocales] = await Promise.all([
     obtenerBodegasDeAraujos(),
     prisma.bodegaConfig.findMany(),
-    obtenerProductosDeAraujos()
+    obtenerProductosDeAraujos(),
+    prisma.productAdvertisement.findMany({ where: { isActive: true } })
   ])
   
   const usuarioLocal = await prisma.user.findUnique({ where: { id: parseInt(userId) } })
@@ -116,6 +118,19 @@ export default async function InventarioPage() {
     }
   })
 
+  const productosConPublicidadInyectada = productosAraujos.map((prod: any) => {
+    const banner = bannersLocales.find(b => b.productCode === prod.code)
+    return {
+      ...prod,
+      publicidadAsignada: banner ? {
+        id: banner.id,
+        title: banner.title,
+        imagePath: banner.imagePath,
+        endDate: banner.endDate.toISOString()
+      } : null
+    }
+  })
+
   return (
     <div className="p-6 md:p-12 bg-[#F8FAFC] min-h-screen text-[#001F3F]">
       <header className="flex justify-between items-end mb-10 pb-4 border-b border-slate-200">
@@ -128,9 +143,8 @@ export default async function InventarioPage() {
           </p>
         </div>
       </header>
-
       <TablaInventario
-        productosIniciales={productosAraujos}
+        productosIniciales={productosConPublicidadInyectada}
         bodegasAPI={bodegasMapeadasParaTabla}
         nombreVendedorActual={nombreVendedor}
         rolUsuario={rolUsuario}

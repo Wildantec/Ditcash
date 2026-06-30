@@ -11,8 +11,7 @@ export default async function DashboardVendedor() {
   if (!userIdRaw) redirect('/login')
 
   const userId = parseInt(userIdRaw)
-  
-  // 🟢 Consultamos los datos globales del usuario para extraer el nombre real de la cuenta
+
   const usuarioBD = await prisma.user.findUnique({
     where: { id: userId }
   })
@@ -21,7 +20,6 @@ export default async function DashboardVendedor() {
     where: { usuarioId: userId }
   })
 
-  // FUNCIÓN DE EMERGENCIA DEL SERVIDOR: Si no hay vendedor vinculado a ese usuario
   if (!vendedor) {
     async function logoutDeEmergencia() {
       'use server'
@@ -100,13 +98,11 @@ const stats = await prisma.evidencia.aggregate({
     orderBy: { fechaInicio: 'desc' }
   })
 
-  // Variable con el nombre real sanitizado para evitar nulos
   const nombreRealUsuario = (usuarioBD?.nombre || vendedor.nombre || "Vendedor Ditec").toUpperCase();
 
   return (
     <div className="min-h-screen bg-[#F4F7FA] p-4 md:p-12 text-[#001F3F] font-sans">
-      
-      {/* 🟢 NUEVA CABECERA DINÁMICA DE BIENVENIDA */}
+
       <header className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8 md:mb-12">
         <div className="text-center md:text-left">
           <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter leading-none">Panel de Ventas</h1>

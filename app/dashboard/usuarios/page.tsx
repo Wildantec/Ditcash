@@ -3,14 +3,18 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getUsuariosAction, eliminarUsuarioAction } from '@/app/actions/usuarios'
 import CrearUsuario from '@/components/admin/CrearUsuario'
-import Link from 'next/link'
+import EditarUsuarioForm from '@/components/admin/EditarUsuarioForm'
 import Swal from 'sweetalert2'
-import { ShieldCheck, Users, Briefcase, UserPlus, X, Loader2 } from 'lucide-react'
+import { ShieldCheck, Users, Briefcase, UserPlus, X, Eye, Pencil, Trash2, IdCard, ToggleLeft } from 'lucide-react'
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isModalCrearOpen, setIsModalCrearOpen] = useState(false)
+  const [isModalEditarOpen, setIsModalEditarOpen] = useState(false)
+  const [isModalVerOpen, setIsModalVerOpen] = useState(false)
+  
+  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState<any | null>(null)
 
   const cargarUsuarios = useCallback(async () => {
     try {
@@ -27,6 +31,16 @@ export default function UsuariosPage() {
   useEffect(() => {
     cargarUsuarios()
   }, [cargarUsuarios])
+
+  const abrirVerModal = (u: any) => {
+    setUsuarioSeleccionado(u)
+    setIsModalVerOpen(true)
+  }
+
+  const abrirEditarModal = (id: number) => {
+    setUsuarioSeleccionado(id)
+    setIsModalEditarOpen(true)
+  }
 
   const handleEliminar = async (id: number, nombre: string) => {
     const { isConfirmed } = await Swal.fire({
@@ -59,28 +73,86 @@ export default function UsuariosPage() {
           <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">Gestiona quién entra al sistema y sus permisos</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => setIsModalCrearOpen(true)}
           className="bg-[#001F3F] text-[#FFB800] hover:bg-black transition-all font-black text-[10px] uppercase tracking-widest px-6 py-4 rounded-2xl flex items-center gap-2 shadow-lg"
         >
           <UserPlus size={14} strokeWidth={3} />
           <span>Crear Usuario</span>
         </button>
       </header>
-      {isModalOpen && (
+      {isModalCrearOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[550px] rounded-[3.5rem] p-10 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setIsModalCrearOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"><X size={20} strokeWidth={2.5} /></button>
+            <CrearUsuario onSuccess={() => { cargarUsuarios(); setIsModalCrearOpen(false) }} />
+          </div>
+        </div>
+      )}
+      {isModalEditarOpen && usuarioSeleccionado && typeof usuarioSeleccionado === 'number' && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 z-50 animate-fadeIn">
+          <div className="bg-white w-full max-w-[650px] rounded-[3.5rem] p-10 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto">
             <button 
-              onClick={() => setIsModalOpen(false)} 
+              onClick={() => { setIsModalEditarOpen(false); setUsuarioSeleccionado(null) }} 
               className="absolute top-8 right-8 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"
             >
               <X size={20} strokeWidth={2.5} />
             </button>
-            <CrearUsuario 
-              onSuccess={() => {
+            <EditarUsuarioForm 
+              usuarioId={usuarioSeleccionado} 
+              onFormSuccess={() => {
                 cargarUsuarios()
-                setIsModalOpen(false)
-              }} 
+                setIsModalEditarOpen(false)
+                setUsuarioSeleccionado(null)
+              }}
             />
+          </div>
+        </div>
+      )}
+      {isModalVerOpen && usuarioSeleccionado && typeof usuarioSeleccionado === 'object' && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 z-50 animate-fadeIn">
+          <div className="bg-white w-full max-w-[480px] rounded-[3.5rem] p-10 shadow-2xl border border-slate-100 relative overflow-hidden">
+            <button onClick={() => { setIsModalVerOpen(false); setUsuarioSeleccionado(null) }} className="absolute top-8 right-8 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"><X size={20} strokeWidth={2.5} /></button>
+            
+            <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+              <div className="w-1.5 h-6 bg-[#FFB800] rounded-full" />
+              <h2 className="text-[#001F3F] font-black text-lg uppercase italic tracking-tighter">Vista de Credencial</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner flex items-center gap-3">
+                <Briefcase size={16} className="text-slate-400" />
+                <div>
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Nombre Completo</p>
+                  <p className="text-sm font-black text-[#001F3F] uppercase">{usuarioSeleccionado.vendedor?.nombre || usuarioSeleccionado.nombre}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner flex items-center gap-3">
+                <IdCard size={16} className="text-slate-400" />
+                <div>
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Cédula de Identidad</p>
+                  <p className="text-sm font-bold tracking-widest font-mono text-[#001F3F]">{usuarioSeleccionado.cedula}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Rol Asignado</p>
+                  <span className="text-[9px] font-black px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg uppercase tracking-wider block text-center">
+                    {usuarioSeleccionado.rol}
+                  </span>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-inner">
+                  <p className="text-[9px] font-black uppercase text-slate-400 tracking-wider mb-1">Estado Acceso</p>
+                  <div className="flex items-center gap-2 justify-center py-0.5">
+                    <div className={`w-2 h-2 rounded-full ${usuarioSeleccionado.activo ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                    <span className={`font-black text-[10px] uppercase tracking-widest ${usuarioSeleccionado.activo ? 'text-green-600' : 'text-red-500'}`}>
+                      {usuarioSeleccionado.activo ? 'Activo' : 'Bloqueado'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -126,13 +198,7 @@ export default function UsuariosPage() {
                       <p className="text-[12px] font-bold text-slate-400 tracking-widest font-mono">{u.cedula}</p>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <span className={`text-[9px] font-black px-4 py-2 rounded-xl uppercase tracking-widest border ${
-                        u.rol === 'ADMIN' 
-                        ? 'bg-purple-50 text-purple-600 border-purple-100' 
-                        : u.rol === 'MARKETING'
-                        ? 'bg-orange-50 text-orange-600 border-orange-100'
-                        : 'bg-blue-50 text-blue-600 border-blue-100'
-                      }`}>
+                      <span className="text-[9px] font-black px-4 py-2 rounded-xl uppercase tracking-widest bg-blue-50 text-blue-600 border border-blue-100">
                         {u.rol}
                       </span>
                     </td>
@@ -145,17 +211,29 @@ export default function UsuariosPage() {
                       </div>
                     </td>
                     <td className="px-10 py-6 text-right">
-                      <div className="flex justify-end items-center gap-6">
-                        <Link href={`/dashboard/admin/usuarios/editar/${u.id}`}>
-                          <button className="text-[10px] font-black text-[#001F3F] uppercase hover:text-[#FFB800] transition-colors tracking-widest border-b-2 border-transparent hover:border-[#FFB800] pb-1">
-                            Editar
-                          </button>
-                        </Link>
+                      <div className="flex justify-end items-center gap-5">
+                        <button 
+                          onClick={() => abrirVerModal(u)}
+                          className="text-[#001F3F] hover:text-[#FFB800] transition-colors p-1 focus:outline-none"
+                          title="Ver Detalle"
+                        >
+                          <Eye size={18} strokeWidth={2.2} />
+                        </button>
+                        
+                        <button 
+                          onClick={() => abrirEditarModal(u.id)}
+                          className="text-slate-400 hover:text-[#001F3F] transition-colors p-1 focus:outline-none"
+                          title="Editar Perfil"
+                        >
+                          <Pencil size={17} strokeWidth={2.2} />
+                        </button>
+                        
                         <button 
                           onClick={() => handleEliminar(u.id, u.vendedor?.nombre || u.nombre || 'Usuario')}
-                          className="text-[10px] font-black text-red-400 uppercase hover:text-red-600 transition-colors tracking-widest border-b-2 border-transparent hover:border-red-600 pb-1"
+                          className="text-red-400 hover:text-red-600 transition-colors p-1 focus:outline-none"
+                          title="Borrar Acceso"
                         >
-                          Borrar
+                          <Trash2 size={17} strokeWidth={2.2} />
                         </button>
                       </div>
                     </td>

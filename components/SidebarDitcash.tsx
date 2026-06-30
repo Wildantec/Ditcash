@@ -5,19 +5,34 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { logoutAction } from '@/app/actions/login'
 import { 
-  BarChart3, Users, Package, Rocket, Gift, Bell, Briefcase, BellRing,
-  LogOut, Menu, X, Warehouse, Settings, Fuel, ChevronDown, ChevronUp, Search
+  BarChart3, Users, Gift, ChevronDown, LogOut, Menu, X, Fuel, 
+  Settings, Wrench, Search
 } from 'lucide-react'
 
 interface SidebarProps {
-  role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION'
+  role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION' | 'SERVICIO_TECNICO'
 }
+const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
+  VENDEDOR: ['campanas', 'premios', 'inventario'],
+  MARKETING: ['vendedores', 'campanas', 'canjes', 'historial', 'premios', 'inventario'],
+  CONTABILIDAD: ['estaciones', 'facturas_comb', 'vehiculos'],
+  SERVICIO_TECNICO: ['vehiculos', 'estaciones'],
+  COBRANZAS: [],
+  FACTURACION: [],
+  ADMIN: []
+};
 
 export default function SidebarDitcash({ role }: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
-  const [openContabilidad, setOpenContabilidad] = useState(false)
   const [permisosCargados, setPermisosCargados] = useState<any[]>([])
+  const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
+    operaciones: false,
+    incentivos: false,
+    contabilidad: false,
+    servicio_tecnico: false,
+    configuracion: false
+  })
 
   if (pathname === '/') return null
 
@@ -38,28 +53,84 @@ export default function SidebarDitcash({ role }: SidebarProps) {
 
   useEffect(() => {
     if (pathname.includes('/combustible/')) {
-      setOpenContabilidad(true)
+      setOpenSections(prev => ({ ...prev, contabilidad: true }))
+    } else if (pathname.includes('/servicio-tecnico/')) {
+      setOpenSections(prev => ({ ...prev, servicio_tecnico: true }))
+    } else if (pathname.includes('/vendedores') || pathname.includes('/campanas') || pathname.includes('/canjes')) {
+      setOpenSections(prev => ({ ...prev, operaciones: true }))
+    } else if (pathname.includes('/premios') || pathname.includes('/inventario') || pathname.includes('/bodegas')) {
+      setOpenSections(prev => ({ ...prev, incentivos: true }))
+    } else if (pathname.includes('/usuarios') || pathname.includes('/permisos')) {
+      setOpenSections(prev => ({ ...prev, configuracion: true }))
     }
   }, [pathname])
-
   const tieneAccAccessModulo = (moduloId: string) => {
     if (role === 'ADMIN') return true
+
+    const modulosFijos = MODULOS_POR_DEFECTO[role] || []
+    if (modulosFijos.includes(moduloId)) return true
+
     const permiso = permisosCargados.find(p => p.rol === role && p.modulo === moduloId)
-    return permiso ? permiso.ver : false
+    return permiso ? !!permiso.ver : false
+  }
+
+  const toggleSection = (id: string) => {
+    setOpenSections(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
   const closeSidebar = () => setIsOpen(false)
 
-  const esDashboardActivo = pathname === '/dashboard'
-  const esCampanaActiva = pathname === '/dashboard/campanas' || pathname.startsWith('/dashboard/campanas/')
-  const esPremioActivo = pathname === '/dashboard/premios' || pathname.startsWith('/dashboard/premios/')
-  const esInventarioActivo = pathname === '/dashboard/inventario'
-  const esBodegaActiva = pathname === '/dashboard/bodegas'
-  const esUsuariosActivo = pathname === '/dashboard/usuarios'
-  const esVendedoresActivo = pathname === '/dashboard/vendedores'
-  const esCanjesActivo = pathname === '/dashboard/canjes'
-  const esClientesActivo = pathname === '/dashboard/clientes-web'
-  const esPublicidadActiva = pathname === '/dashboard/publicidad'
+  const menuEstructura = [
+    {
+      id: 'operaciones',
+      label: 'Auditoría Campo',
+      icon: Search,
+      submodulos: [
+        { href: '/dashboard/vendedores', label: 'Monitoreo Asesores', permisoKey: 'vendedores' },
+        { href: '/dashboard/campanas', label: 'Control Campañas', permisoKey: 'campanas' },
+        { href: '/dashboard/canjes', label: 'Validar Canjes', permisoKey: 'canjes' },
+        { href: '/dashboard/canjes/historial', label: 'Historial Entregas', permisoKey: 'historial' }
+      ]
+    },
+    {
+      id: 'incentivos',
+      label: 'Premios & Stock',
+      icon: Gift,
+      submodulos: [
+        { href: '/dashboard/premios', label: 'Catálogo Premios', permisoKey: 'premios' },
+        { href: '/dashboard/inventario', label: 'Inventario Global', permisoKey: 'inventario' },
+        { href: '/dashboard/bodegas', label: 'Bodegas', permisoKey: 'bodegas' }
+      ]
+    },
+    {
+      id: 'contabilidad',
+      label: 'Contabilidad',
+      icon: Fuel,
+      forzarMostrar: role === 'ADMIN' || role === 'CONTABILIDAD' || role === 'FACTURACION',
+      submodulos: [
+        { href: '/dashboard/combustible/estaciones', label: 'Estaciones', permisoKey: 'estaciones' },
+        { href: '/dashboard/combustible/facturas', label: 'Ingresar Factura', permisoKey: 'facturas_comb' }
+      ]
+    },
+    {
+      id: 'servicio_tecnico',
+      label: 'Servicio Técnico',
+      icon: Wrench,
+      forzarMostrar: role === 'ADMIN' || role === 'SERVICIO_TECNICO',
+      submodulos: [
+        { href: '/dashboard/combustible/vehiculos', label: 'Flota de Vehículos', permisoKey: 'vehiculos' },
+      ]
+    },
+    {
+      id: 'configuracion',
+      label: 'Configuración',
+      icon: Settings,
+      submodulos: [
+        { href: '/dashboard/usuarios', label: 'Gestión Usuarios', permisoKey: 'usuarios' },
+        { href: '/dashboard/permisos', label: 'Seguridad Corp.', permisoKey: 'permisos', soloAdmin: true }
+      ]
+    }
+  ]
 
   return (
     <>
@@ -69,82 +140,65 @@ export default function SidebarDitcash({ role }: SidebarProps) {
 
       {isOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[40] lg:hidden" onClick={closeSidebar} />}
 
-      <aside className={`fixed top-0 left-0 h-screen bg-[#001F3F] text-white flex flex-col z-[50] transition-transform duration-300 w-72 ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:sticky lg:w-64`}>
+      <aside className={`fixed top-0 left-0 h-screen bg-[#001F3F] text-white flex flex-col z-[50] transition-transform duration-300 w-72 ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:sticky lg:w-64 border-r border-white/5`}>
         <div className="p-8">
-          <h2 className="text-[#FFB800] text-3xl font-black italic tracking-tighter">DITCASH</h2>
+          <h2 className="text-[#FFB800] text-3xl font-black italic tracking-tighter">DIT<span className="text-white">CASH</span></h2>
           <p className="text-[10px] text-slate-400 tracking-[1px] uppercase font-bold mt-1">Panel Control</p>
         </div>
-
-        <nav className="flex-grow flex flex-col mt-4 overflow-y-auto select-none gap-0.5">
-          <NavLink href="/dashboard" label="Resumen Global" icon={BarChart3} onClick={closeSidebar} isActive={esDashboardActivo} />
+        <nav className="flex-grow flex flex-col mt-2 overflow-y-auto select-none gap-1 scrollbar-none">
           
-          {tieneAccAccessModulo('vendedores') && (
-            <NavLink href="/dashboard/vendedores" label="Auditoría Campo" icon={Search} onClick={closeSidebar} isActive={esVendedoresActivo} />
-          )}
-
-          {tieneAccAccessModulo('canjes') && (
-            <NavLink href="/dashboard/canjes" label="Control Canjes" icon={Bell} onClick={closeSidebar} isActive={esCanjesActivo} />
-          )}
-
-          {tieneAccAccessModulo('clientes') && (
-            <NavLink href="/dashboard/clientes-web" label="Clientes" icon={Users} onClick={closeSidebar} isActive={esClientesActivo} />
-          )}
-
-          {tieneAccAccessModulo('campanas') && (
-            <NavLink href="/dashboard/campanas" label="Campañas" icon={Rocket} onClick={closeSidebar} isActive={esCampanaActiva} />
-          )}
-
-          {tieneAccAccessModulo('premios') && (
-            <NavLink href="/dashboard/premios" label="Catálogo Premios" icon={Gift} onClick={closeSidebar} isActive={esPremioActivo} />
-          )}
+          <NavLink href="/dashboard" label="Resumen Global" icon={BarChart3} onClick={closeSidebar} isActive={pathname === '/dashboard'} />
           
-          {tieneAccAccessModulo('inventario') && (
-            <NavLink href="/dashboard/inventario" label="Inventario Global" icon={Package} onClick={closeSidebar} isActive={esInventarioActivo} />
-          )}
+          {menuEstructura.map((seccion) => {
+            const submodulosPermitidos = seccion.submodulos.filter((sub: any) => {
+              if (sub.soloAdmin && role !== 'ADMIN') return false;
+              if (seccion.forzarMostrar || role === 'ADMIN') return true;
+              return tieneAccAccessModulo(sub.permisoKey);
+            });
 
-          {tieneAccAccessModulo('bodegas') && (
-            <NavLink href="/dashboard/bodegas" label="Bodegas" icon={Warehouse} onClick={closeSidebar} isActive={esBodegaActiva} />
-          )}
+            if (submodulosPermitidos.length === 0) return null;
 
-          {tieneAccAccessModulo('usuarios') && (
-            <NavLink href="/dashboard/usuarios" label="Gestión Usuarios" icon={Users} onClick={closeSidebar} isActive={esUsuariosActivo} />
-          )}
+            const isOpenSection = !!openSections[seccion.id];
 
-          {tieneAccAccessModulo('publicidad') && (
-            <NavLink href="/dashboard/publicidad" label="Banners Publicidad" icon={BellRing} onClick={closeSidebar} isActive={esPublicidadActiva} />
-          )}
+            return (
+              <div key={seccion.id} className="w-full">
+                <button 
+                  onClick={() => toggleSection(seccion.id)}
+                  className="w-full flex items-center justify-between px-8 py-3.5 text-slate-400 hover:bg-[#002d5c] hover:text-white transition-all border-l-4 border-transparent uppercase text-[11px] font-black tracking-widest"
+                >
+                  <div className="flex items-center gap-4">
+                    <seccion.icon size={15} strokeWidth={2.5} />
+                    <span>{seccion.label}</span>
+                  </div>
+                  <ChevronDown size={13} className={`transform transition-transform duration-200 ${isOpenSection ? 'rotate-180 text-[#FFB800]' : ''}`} />
+                </button>
+                {isOpenSection && (
+                  <div className="bg-[#001833]/40 border-y border-white/5 py-1 space-y-0.5">
+                    {submodulosPermitidos.map((sub, sIndex) => {
+                      const isSubActive = sub.href === '/dashboard/canjes'
+                        ? pathname === sub.href
+                        : pathname === sub.href || pathname.startsWith(`${sub.href}/`);
 
-          {(role === 'ADMIN' || role === 'CONTABILIDAD' || role === 'FACTURACION') && (
-            <div>
-              <button 
-                onClick={() => setOpenContabilidad(!openContabilidad)}
-                className="w-full flex items-center justify-between px-8 py-4 text-slate-400 hover:bg-[#002d5c] hover:text-white transition-all border-l-4 border-transparent"
-              >
-                <div className="flex items-center gap-4">
-                  <Fuel size={16} strokeWidth={2.5} />
-                  <span className="text-xs uppercase tracking-widest font-medium">Contabilidad</span>
-                </div>
-                {openContabilidad ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-              {openContabilidad && (
-                <div className="bg-[#001833]/50 border-y border-white/5">
-                  <SubNavLink href="/dashboard/combustible/vehiculos" label="Vehículos" onClick={closeSidebar} />
-                  <SubNavLink href="/dashboard/combustible/estaciones" label="Estaciones" onClick={closeSidebar} />
-                  <SubNavLink href="/dashboard/combustible/facturas" label="Ingresar Factura" onClick={closeSidebar} />
-                </div>
-              )}
-            </div>
-          )}
-          
-          {role === 'ADMIN' && (
-            <NavLink href="/dashboard/permisos" label="Configuración" icon={Settings} onClick={closeSidebar} />
-          )}
+                      return (
+                        <SubNavLink 
+                          key={sIndex}
+                          href={sub.href}
+                          label={sub.label}
+                          onClick={closeSidebar}
+                          isActive={isSubActive}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
-
-        <div className="p-6 border-t border-white/10">
+        <div className="p-6 border-t border-white/10 bg-[#001730]">
           <form action={logoutAction}>
-            <button type="submit" className="flex items-center gap-4 px-8 py-4 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-2xl w-full text-left transition-all">
-              <LogOut size={16} /> <span>Cerrar Sesión</span>
+            <button type="submit" className="flex items-center gap-4 px-8 py-3.5 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-xl w-full text-left transition-all">
+              <LogOut size={15} /> <span>Cerrar Sesión</span>
             </button>
           </form>
         </div>
@@ -154,24 +208,35 @@ export default function SidebarDitcash({ role }: SidebarProps) {
 }
 
 function NavLink({ href, icon: IconComponent, label, onClick, isActive }: any) {
-  const pathname = usePathname()
-  const linkActive = isActive !== undefined ? isActive : pathname === href
-
   return (
-    <Link href={href} onClick={onClick} className={`flex items-center gap-4 px-8 py-4 transition-all border-l-4 ${linkActive ? 'bg-[#FFB800]/10 text-[#FFB800] border-[#FFB800] font-black' : 'text-slate-400 border-transparent hover:bg-[#002d5c] hover:text-white font-medium'}`}>
-      <IconComponent size={16} strokeWidth={2.5} />
-      <span className="text-xs uppercase tracking-widest">{label}</span>
+    <Link 
+      href={href} 
+      onClick={onClick} 
+      className={`flex items-center gap-4 px-8 py-3.5 transition-all border-l-4 ${
+        isActive 
+          ? 'bg-[#FFB800]/10 text-[#FFB800] border-[#FFB800] font-black' 
+          : 'text-slate-400 border-transparent hover:bg-[#002d5c] hover:text-white font-black'
+      }`}
+    >
+      <IconComponent size={15} strokeWidth={2.5} />
+      <span className="text-[11px] uppercase tracking-widest">{label}</span>
     </Link>
   )
 }
 
-function SubNavLink({ href, label, onClick }: { href: string; label: string; onClick: () => void }) {
-  const pathname = usePathname()
-  const isActive = pathname === href
-
+function SubNavLink({ href, label, onClick, isActive }: { href: string; label: string; onClick: () => void; isActive: boolean }) {
   return (
-    <Link href={href} onClick={onClick} className={`flex items-center pl-16 py-3 text-[11px] uppercase tracking-widest transition-all ${isActive ? 'text-[#FFB800] font-black' : 'text-slate-400 hover:text-white'}`}>
-      <span className="mr-2">•</span> {label}
+    <Link 
+      href={href} 
+      onClick={onClick} 
+      className={`flex items-center pl-16 py-2.5 text-[10px] uppercase tracking-widest transition-all font-bold ${
+        isActive 
+          ? 'text-[#FFB800] font-black bg-white/5' 
+          : 'text-slate-400 hover:text-white hover:pl-17'
+      }`}
+    >
+      <span className={`mr-2.5 transition-colors ${isActive ? 'text-[#FFB800]' : 'text-slate-500'}`}>•</span> 
+      {label}
     </Link>
   )
 }
