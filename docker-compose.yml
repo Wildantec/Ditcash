@@ -33,9 +33,9 @@ services:
     depends_on:
       - db-ditcash 
     volumes:
-      - ./app:/app/app             # Mapea tus rutas de páginas y endpoints
-      - ./components:/app/components # Mapea tus componentes
-      - ./lib:/app/lib             # Mapea tus librerías de utilidades
+      - ./app:/app/app             
+      - ./components:/app/components
+      - ./lib:/app/lib          
     environment:
       DATABASE_URL: "mysql://root:Wildantec2026@db-ditcash:3306/ditcash_db"
       NODE_ENV: development

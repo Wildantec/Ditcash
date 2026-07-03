@@ -3,8 +3,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { crearVehiculoAction, editarVehiculoAction, eliminarVehiculoAction } from '@/app/actions/combustible'
 import { exportarVehiculosExcel } from '@/app/actions/reportes'
-import { Car, Plus, Edit2, Trash2, Eye, X, Loader2, FileSpreadsheet, ChevronDown, User, Wrench, AlertTriangle, CheckCircle2, Search } from 'lucide-react'
+import { Car, Plus, Edit2, Trash2, Eye, X, Loader2, FileSpreadsheet, ChevronDown, User, Wrench, AlertTriangle, CheckCircle2, Search, Calculator } from 'lucide-react'
 import Swal from 'sweetalert2'
+
+import CalculadoraCombustibleModal from './CalculadoraCombustibleModal'
 
 interface ModuloVehiculosProps {
   vehiculosIniciales: any[]
@@ -17,6 +19,9 @@ export default function ModuloVehiculosAdmin({ vehiculosIniciales, vendedores }:
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isVerModalOpen, setIsVerModalOpen] = useState(false)
+  
+  const [calculadoraAbierta, setCalculadoraAbierta] = useState(false)
+
   const [vehiculoSeleccionadoVer, setVehiculoSeleccionadoVer] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [exportando, setExportando] = useState(false)
@@ -191,7 +196,16 @@ export default function ModuloVehiculosAdmin({ vehiculosIniciales, vendedores }:
           </p>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto mt-1 sm:mt-0">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto mt-1 sm:mt-0">
+          
+          <button 
+            onClick={() => setCalculadoraAbierta(true)} 
+            className="bg-[#001F3F] text-[#FFB800] hover:bg-black transition-all font-black text-[9px] uppercase tracking-widest px-3 py-2 rounded-xl flex items-center gap-1.5 shadow-md active:scale-95"
+          >
+            <Calculator size={11} strokeWidth={3} />
+            <span>Simulador Galonaje ➔</span>
+          </button>
+
           <button onClick={handleDescargaExcel} disabled={exportando} className="bg-emerald-600 text-white hover:bg-emerald-700 transition-all font-black text-[9px] uppercase tracking-widest px-3 py-2 rounded-xl flex items-center gap-1 shadow-md">
             {exportando ? <Loader2 size={11} className="animate-spin" /> : <FileSpreadsheet size={11} />}
             <span>Exportar</span>
@@ -201,6 +215,7 @@ export default function ModuloVehiculosAdmin({ vehiculosIniciales, vendedores }:
           </button>
         </div>
       </header>
+      
       <div className="bg-slate-100 border border-slate-200 rounded-xl p-2.5 mb-4 flex flex-col sm:flex-row items-end gap-3 shadow-inner max-w-3xl">
         <div className="flex flex-col gap-0.5 flex-1 w-full relative" ref={placaDropdownRef}>
           <label className="text-[8px] font-black uppercase tracking-wider text-slate-400 ml-1">Seleccionar Placa</label>
@@ -242,6 +257,7 @@ export default function ModuloVehiculosAdmin({ vehiculosIniciales, vendedores }:
           <span>Consultar</span>
         </button>
       </div>
+
       <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -296,6 +312,7 @@ export default function ModuloVehiculosAdmin({ vehiculosIniciales, vendedores }:
           </table>
         </div>
       </div>
+
       {isVerModalOpen && vehiculoSeleccionadoVer && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[400px] rounded-[2rem] p-6 shadow-2xl border border-slate-100 relative text-[#001F3F]">
@@ -326,6 +343,7 @@ export default function ModuloVehiculosAdmin({ vehiculosIniciales, vendedores }:
           </div>
         </div>
       )}
+
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[380px] rounded-2xl p-6 shadow-2xl border border-slate-100 relative">
@@ -381,6 +399,11 @@ export default function ModuloVehiculosAdmin({ vehiculosIniciales, vendedores }:
           </div>
         </div>
       )}
+      <CalculadoraCombustibleModal 
+        isOpen={calculadoraAbierta} 
+        onClose={() => setCalculadoraAbierta(false)} 
+      />
+
     </div>
   )
 }

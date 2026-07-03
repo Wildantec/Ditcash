@@ -327,7 +327,7 @@ export async function getHistorialEntregas() {
       orderBy: { createdAt: 'desc' }
     });
 
-    return canjesAprobados.map(item => {
+    return canjesAprobados.map((item: any) => {
       const necesitaAuditoria = !item.urlEvidencia; 
 
       return {

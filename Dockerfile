@@ -12,8 +12,8 @@ RUN npm install
 RUN npx prisma generate
 
 COPY . .
+RUN npx prisma generate
 RUN npm run build
-
 # ==========================================
 # ETAPA 2: Ejecución (Runner) - Producción
 # ==========================================

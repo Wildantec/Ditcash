@@ -69,7 +69,7 @@ export default function UsuariosPage() {
     <div className="p-6 md:p-12 bg-[#F8FAFC] min-h-screen text-[#001F3F]">
       <header className="flex justify-between items-center mb-10 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-2xl font-black uppercase italic tracking-tighter">Control de Accesos</h1>
+          <h1 className="text-2xl font-black uppercase italic tracking-tighter">Control de Usuarios</h1>
           <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">Gestiona quién entra al sistema y sus permisos</p>
         </div>
         <button 

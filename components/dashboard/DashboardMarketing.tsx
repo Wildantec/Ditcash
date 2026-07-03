@@ -17,26 +17,25 @@ export default async function DashboardMarketing() {
   }
 
   const [totalVendedores, totalCampanas, totalPremios, pendientesTotal, rankingRaw] = await Promise.all([
-    prisma.vendedor.count().catch(() => 0),
+    // CORRECCIÓN: Cuenta estrictamente solo los usuarios que son VENDEDOR en la base de datos
+    prisma.user.count({ where: { rol: 'VENDEDOR' } }).catch(() => 0),
     prisma.campana.count().catch(() => 0),
     prisma.premio.count({ where: { activo: true } }).catch(() => 0),
     prisma.evidencia.count({ where: { estado: 'pendiente' } }).catch(() => 0),
+    // CORRECCIÓN: Traemos los puntos directos acumulados e inyectados desde MySQL
     prisma.vendedor.findMany({
       select: {
         nombre: true,
-        saldoGastado: true,
-        evidencias: {
-          where: { estado: 'aprobado' },
-          select: { valorPagado: true }
-        }
+        puntosAcumulados: true,
+        saldoGastado: true
       },
     }).catch(() => []),
   ]);
 
   const rankingVendedores = rankingRaw
     .map((v: any) => {
-      const totalVentas = v.evidencias.reduce((acc: number, curr: any) => acc + (Number(curr.valorPagado) || 0), 0);
-      const saldoDisponibleReal = totalVentas - (Number(v.saldoGastado) || 0);
+      // Calculamos usando el acumulado estático inyectado menos lo que haya gastado
+      const saldoDisponibleReal = Number(v.puntosAcumulados || 0) - (Number(v.saldoGastado) || 0);
       return { nombre: v.nombre, puntosAcumulados: saldoDisponibleReal || 0 };
     })
     .sort((a: any, b: any) => b.puntosAcumulados - a.puntosAcumulados)
@@ -142,7 +141,7 @@ export default async function DashboardMarketing() {
           <div className="flex items-center gap-4">
             <div className="w-1.5 h-8 bg-[#FFB800] rounded-full" />
             <h2 className="text-xl md:text-2xl font-black text-[#001F3F] tracking-tighter uppercase italic flex items-center gap-3">
-              <TrendingUp size={22} strokeWidth={2.5} /> Saldo Disponible Vendedores
+              <TrendingUp size={22} strokeWidth={2.5} /> Rendimientos
             </h2>
           </div>
         </div>

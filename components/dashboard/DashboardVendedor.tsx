@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, Trophy, Medal } from 'lucide-react'
 
 export default async function DashboardVendedor() {
   const cookieStore = await cookies()
@@ -55,15 +55,11 @@ export default async function DashboardVendedor() {
     )
   }
 
-const stats = await prisma.evidencia.aggregate({
+  const stats = await prisma.evidencia.aggregate({
     where: { vendedorId: vendedor.id, estado: 'aprobado' },
-    _sum: { valorPagado: true },
     _count: { id: true }
   })
-
-  const ganadoTotal = Number(stats._sum.valorPagado || 0)
-  const gastadoTotal = Number(vendedor.saldoGastado || 0)
-  const saldo = ganadoTotal - gastadoTotal
+  const saldo = Number(vendedor.puntosAcumulados || 0) - Number(vendedor.saldoGastado || 0)
   const totalAprobadas = stats._count.id
   
   const premios = await prisma.premio.findMany({
@@ -74,21 +70,13 @@ const stats = await prisma.evidencia.aggregate({
   const proximoPremio = premios.find((p: any) => Number(p.puntos) > saldo) || premios[premios.length - 1];
   const metaPremio = proximoPremio ? Number(proximoPremio.puntos) : 100;
   const progresoPremio = Math.min((saldo / metaPremio) * 100, 100);
-  
-  const vendedoresRaw = await prisma.vendedor.findMany({
-    include: {
-      evidencias: {
-        where: { estado: 'aprobado' },
-        select: { valorPagado: true }
-      }
-    }
-  })
+  const vendedoresRaw = await prisma.vendedor.findMany()
 
   const topVendedores = vendedoresRaw
     .map((v: any) => ({
       id: v.id,
       nombre: v.nombre,
-      puntosReales: v.evidencias.reduce((acc: any, curr: any) => acc + (Number(curr.valorPagado) || 0), 0) - Number(v.saldoGastado || 0)
+      puntosReales: Number(v.puntosAcumulados || 0) - Number(v.saldoGastado || 0)
     }))
     .sort((a: any, b: any) => b.puntosReales - a.puntosReales)
     .slice(0, 3)
@@ -205,7 +193,6 @@ const stats = await prisma.evidencia.aggregate({
             </div>
           </section>
         </div>
-        
         <div className="lg:col-span-4">
           <div className="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 shadow-xl border border-slate-50 lg:sticky lg:top-10">
             <h3 className="text-lg md:text-xl font-black uppercase tracking-[0.2em] mb-8 md:mb-10 pb-4 border-b border-slate-100 italic text-center lg:text-left">Top DitCash</h3>
@@ -220,9 +207,14 @@ const stats = await prisma.evidencia.aggregate({
                       {v.id === vendedor.id ? 'TÚ' : v.nombre.split(' ')[0]}
                     </p>
                   </div>
-                  <p className={`text-xs md:text-sm font-black italic ${v.id === vendedor.id ? 'text-[#FFB800]' : 'text-slate-400'}`}>
-                    ${v.puntosReales.toFixed(2)}
-                  </p>
+                  
+                  <div>
+                    {index === 0 ? (
+                      <Trophy size={18} className="text-[#FFB800]" strokeWidth={2.5} />
+                    ) : (
+                      <Medal size={16} className={v.id === vendedor.id ? 'text-slate-300' : 'text-slate-400'} strokeWidth={2.5} />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

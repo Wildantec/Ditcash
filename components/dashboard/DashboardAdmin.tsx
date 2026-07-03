@@ -24,24 +24,23 @@ export default async function DashboardAdmin() {
     prisma.campana.count().catch(() => 0),
     prisma.premio.count({ where: { activo: true } }).catch(() => 0),
     prisma.evidencia.count({ where: { estado: 'pendiente' } }).catch(() => 0),
+    // CORRECCIÓN: Traemos crudo el campo asignado por MySQL y el saldo gastado
     prisma.vendedor.findMany({
       select: {
         nombre: true,
-        saldoGastado: true,
-        evidencias: {
-          where: { estado: 'aprobado' },
-          select: { valorPagado: true }
-        }
+        puntosAcumulados: true,
+        saldoGastado: true
       },
     }).catch(() => []),
     prisma.registroCombustible.count().catch(() => 0),
     prisma.vehiculo.count().catch(() => 0),
     prisma.gasolinera.count().catch(() => 0),
   ]);
+
   const rankingVendedores = rankingRaw
     .map((v: any) => {
-      const totalVentas = v.evidencias.reduce((acc: number, curr: any) => acc + (Number(curr.valorPagado) || 0), 0);
-      const saldoDisponibleReal = totalVentas - (Number(v.saldoGastado) || 0);
+      // Calculamos usando directamente el saldo estático inyectado
+      const saldoDisponibleReal = Number(v.puntosAcumulados || 0) - (Number(v.saldoGastado) || 0);
       return { nombre: v.nombre, puntosAcumulados: saldoDisponibleReal || 0 };
     })
     .sort((a: any, b: any) => b.puntosAcumulados - a.puntosAcumulados)
@@ -141,6 +140,7 @@ export default async function DashboardAdmin() {
           </div>
         </Link>
       </div>
+
       <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em] mb-4 ml-2">Módulos de Contabilidad y Flota</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6 mb-12">
         <Link href="/dashboard/combustible/facturas" className="block group">
@@ -200,12 +200,12 @@ export default async function DashboardAdmin() {
           <div className="flex items-center gap-4">
             <div className="w-1.5 h-8 bg-[#FFB800] rounded-full" />
             <h2 className="text-xl md:text-2xl font-black text-[#001F3F] tracking-tighter uppercase italic flex items-center gap-3">
-              <TrendingUp size={22} strokeWidth={2.5} /> Saldo Disponible Vendedores
+              <TrendingUp size={22} strokeWidth={2.5} /> Rendimientos
             </h2>
           </div>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-8">
-          {rankingVendedores.map((v) => (
+          {rankingVendedores.map((v:any) => (
             <div key={v.nombre} className="group/item">
               <div className="flex justify-between items-end mb-3">
                 <p className="font-black text-[#001F3F] text-xs md:text-sm uppercase tracking-tight italic">{v.nombre}</p>

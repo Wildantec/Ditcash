@@ -20,6 +20,7 @@ export async function getVendedorByUsuarioId(usuarioId: number) {
     return null
   }
 }
+
 export async function getSaldoVendedorAction() {
   try {
     const cookieStore = await cookies()
@@ -27,20 +28,14 @@ export async function getSaldoVendedorAction() {
     if (!userId) return 0
 
     const vendedor = await prisma.vendedor.findUnique({
-      where: { usuarioId: parseInt(userId) },
-      include: {
-        evidencias: {
-          where: { estado: 'aprobado' },
-          select: { valorPagado: true }
-        }
-      }
+      where: { usuarioId: parseInt(userId) }
     })
 
     if (!vendedor) return 0
-    const ganado = vendedor.evidencias.reduce((acc:any, ev:any) => acc + Number(ev.valorPagado || 0), 0)
+    const baseInyectada = Number(vendedor.puntosAcumulados || 0)
     const gastado = Number(vendedor.saldoGastado || 0)
     
-    return ganado - gastado
+    return baseInyectada - gastado
   } catch (error) {
     return 0
   }
@@ -55,17 +50,14 @@ export async function getVendedoresRanking() {
     })
 
     const vendedoresProcesados = vendedoresRaw.map((v:any) => {
-      const puntosReales = v.evidencias
-        .filter((e:any) => e.estado === 'aprobado')
-        .reduce((acc:any, curr:any) => acc + (Number(curr.valorPagado) || 0), 0);
+      const saldoDisponibleReal = Number(v.puntosAcumulados || 0) - Number(v.saldoGastado || 0);
       
       return {
         ...v,
-        puntosAcumulados: puntosReales,
+        puntosAcumulados: saldoDisponibleReal,
         evidencias: v.evidencias 
       }
     })
-
     return vendedoresProcesados.sort((a:any, b:any) => b.puntosAcumulados - a.puntosAcumulados)
   } catch (error) {
     return []
