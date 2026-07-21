@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Calculator, Milestone, DollarSign, Fuel } from 'lucide-react'
 
 interface CalculadoraProps {
@@ -9,33 +9,76 @@ interface CalculadoraProps {
 }
 
 export default function CalculadoraCombustibleModal({ isOpen, onClose }: CalculadoraProps) {
-  // Estados Base
+
   const [precioGalon, setPrecioGalon] = useState<string>('2.96')
-  const AUTONOMIA_FIJA = 51.14 // Km por galón estático según Excel
+  const AUTONOMIA_FIJA = 51.14
   const [costoPorKm, setCostoPorKm] = useState<number>(0)
 
-  // Pestaña activa: 'distancia' o 'presupuesto'
+
   const [tabActiva, setTabActiva] = useState<'distancia' | 'presupuesto'>('distancia')
 
-  // Estados de cálculo
+
   const [inputKm, setInputKm] = useState<string>('380')
   const [resultadoDolares, setResultadoDolares] = useState<number>(0)
 
   const [inputDinero, setInputDinero] = useState<string>('50.00')
   const [resultadoKm, setResultadoKm] = useState<number>(0)
 
-  // Recalcular el costo por KM y los sub-módulos cada vez que cambien las entradas
+  const [posicion, setPosicion] = useState({ x: 0, y: 0 })
+  const [estaArrastrando, setEstaArrastrando] = useState(false)
+  const [relativaPos, setRelativaPos] = useState({ x: 0, y: 0 })
+  
+  const modalRef = useRef<HTMLDivElement>(null)
+
+
+  useEffect(() => {
+    if (isOpen) {
+      const xCentrado = window.innerWidth / 2 - 210
+      const yCentrado = window.innerHeight / 2 - 240
+      setPosicion({ x: xCentrado, y: yCentrado })
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!estaArrastrando) return
+      
+      let nuevaX = e.clientX - relativaPos.x
+      let nuevaY = e.clientY - relativaPos.y
+
+      if (nuevaX < 0) nuevaX = 0
+      if (nuevaY < 0) nuevaY = 0
+      if (nuevaX > window.innerWidth - 420) nuevaX = window.innerWidth - 420
+      if (nuevaY > window.innerHeight - 450) nuevaY = window.innerHeight - 450
+
+      setPosicion({ x: nuevaX, y: nuevaY })
+    }
+
+    const handleMouseUp = () => {
+      setEstaArrastrando(false)
+    }
+
+    if (estaArrastrando) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [estaArrastrando, relativaPos])
+
+
   useEffect(() => {
     const precio = parseFloat(precioGalon) || 0
     if (precio > 0) {
       const ckm = precio / AUTONOMIA_FIJA
       setCostoPorKm(ckm)
 
-      // Calcular pestaña distancia
       const kms = parseFloat(inputKm) || 0
       setResultadoDolares(kms * ckm)
 
-      // Calcular pestaña presupuesto
       const dinero = parseFloat(inputDinero) || 0
       setResultadoKm(ckm > 0 ? dinero / ckm : 0)
     } else {
@@ -47,15 +90,30 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
 
   if (!isOpen) return null
 
+  const iniciarArrastre = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('.boton-cerrar-simulador')) return
+    setEstaArrastrando(true)
+    setRelativaPos({
+      x: e.clientX - posicion.x,
+      y: e.clientY - posicion.y
+    })
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-      <div className="bg-white w-full max-w-[420px] rounded-3xl shadow-2xl border border-slate-100 overflow-hidden text-[#001F3F] font-sans">
-        
-        {/* Encabezado */}
-        <header className="bg-[#001F3F] p-4 text-white relative">
+    <div className="fixed inset-0 pointer-events-none z-50">
+      <div
+        ref={modalRef}
+        style={{ left: `${posicion.x}px`, top: `${posicion.y}px` }}
+        className="absolute w-full max-w-[420px] bg-white rounded-3xl shadow-2xl border border-slate-200 pointer-events-auto flex flex-col text-[#001F3F] font-sans select-none"
+      >
+
+        <header 
+          onMouseDown={iniciarArrastre}
+          className={`bg-[#001F3F] p-4 text-white relative rounded-t-3xl cursor-move transition-colors ${estaArrastrando ? 'bg-black' : ''}`}
+        >
           <button 
             onClick={onClose} 
-            className="absolute top-4 right-4 text-slate-400 hover:text-[#FFB800] transition-colors"
+            className="boton-cerrar-simulador absolute top-4 right-4 text-slate-400 hover:text-[#FFB800] transition-colors"
           >
             <X size={18} strokeWidth={2.5} />
           </button>
@@ -70,12 +128,10 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
           </div>
         </header>
 
-        {/* Parámetros Generales / Configuración Base */}
         <div className="p-4 bg-slate-50 border-b border-slate-100">
           <p className="text-[8px] font-black uppercase tracking-wider text-slate-400 mb-2">Variables del Sistema (Excel Base)</p>
           <div className="grid grid-cols-2 gap-3">
             
-            {/* Input: Precio de Galón */}
             <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-xs">
               <label className="block text-[8px] font-black text-slate-400 uppercase mb-1">Precio del Galón</label>
               <div className="relative flex items-center">
@@ -90,7 +146,6 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
               </div>
             </div>
 
-            {/* Fijo: Autonomía Estática */}
             <div className="bg-white p-2.5 rounded-xl border border-slate-100 shadow-xs flex flex-col justify-between">
               <div>
                 <span className="block text-[8px] font-black text-slate-400 uppercase mb-0.5">Autonomía Fija</span>
@@ -100,7 +155,6 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
 
           </div>
 
-          {/* Ficha Técnica: Costo Proporcional por Kilómetro */}
           <div className="mt-3 bg-[#001F3F]/5 border border-[#001F3F]/10 rounded-xl p-2.5 flex justify-between items-center">
             <span className="text-[9px] font-black uppercase text-slate-500 flex items-center gap-1">
               <Fuel size={11} className="text-[#001F3F]" /> Costo x KM Proporcional:
@@ -111,7 +165,6 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
           </div>
         </div>
 
-        {/* Tabs de Operación */}
         <div className="flex border-b border-slate-100 bg-slate-100/50 p-1 m-3 rounded-xl">
           <button 
             onClick={() => setTabActiva('distancia')}
@@ -137,12 +190,11 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
           </button>
         </div>
 
-        {/* Contenido Dinámico de las Pestañas */}
         <div className="p-4 pt-1 space-y-4">
           
           {tabActiva === 'distancia' ? (
-            /* CASO A: POR DISTANCIA */
-            <div className="space-y-3 animate-fadeIn">
+
+            <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider ml-1">Distancia total a recorrer</label>
                 <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
@@ -157,7 +209,6 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
                 </div>
               </div>
 
-              {/* Bloque Resultado */}
               <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-3.5 text-center shadow-inner mt-4">
                 <p className="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1">Consumo proyectado estimado</p>
                 <p className="font-mono text-xl font-black text-emerald-600 tracking-tight">
@@ -167,8 +218,8 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
               </div>
             </div>
           ) : (
-            /* CASO B: POR PRESUPUESTO */
-            <div className="space-y-3 animate-fadeIn">
+
+            <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider ml-1">Valor asignado / Consumido</label>
                 <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
@@ -184,7 +235,6 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
                 </div>
               </div>
 
-              {/* Bloque Resultado */}
               <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-3.5 text-center shadow-inner mt-4">
                 <p className="text-[9px] font-black text-blue-700 uppercase tracking-widest mb-1">Recorrido teórico obligatorio</p>
                 <p className="font-mono text-xl font-black text-blue-600 tracking-tight">
@@ -197,8 +247,8 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
 
         </div>
 
-        {/* Footer */}
-        <footer className="p-3 bg-slate-50 border-t border-slate-100 flex justify-end">
+        <footer className="p-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Arrastra desde la cabecera azul</p>
           <button 
             onClick={onClose}
             className="bg-[#001F3F] text-white font-black text-[9px] uppercase tracking-widest px-4 py-1.5 rounded-lg transition-all hover:bg-black"

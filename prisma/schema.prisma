@@ -141,11 +141,16 @@ model Vehiculo {
   kmUltimoAceite      Float                 @default(0) 
   intervaloAlerta     Float                 @default(5000) 
   alertaMantenimiento Boolean               @default(false) 
+  costoUltimoMantenimiento Float            @default(0.0)
+  tallerMantenimiento     String?           @default("TALLER CENTRAL")
+  numFacturaMantenimiento String?           @default("S/N")
+  fechaMantenimiento      DateTime?         @default(now())
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
 
   registrosCombustible RegistroCombustible[]
   asignaciones         AsignacionVehiculo[]
+  historialKardex         KardexVehiculo[]
 
   @@map("vehiculos")
 }
@@ -164,18 +169,19 @@ model AsignacionVehiculo {
   @@map("asignaciones_vehiculos")
 }
 model Gasolinera {
-  id            Int                   @id @default(autoincrement())
-  nombre        String                
-  ciudad        String                
-  tieneConvenio Boolean               @default(false)
-  montoRecarga  Float                 @default(0)
-  createdAt     DateTime              @default(now())
+  id            Int      @id @default(autoincrement())
+  nombre        String   
+  ciudad        String?
+  numFactura    String   @default("S/N")
+  tieneConvenio Boolean  @default(true)
+  montoRecarga  Float    @default(0)    
+  montoActual   Float    @default(0)  
+  createdAt     DateTime @default(now())
   
   registrosCombustible RegistroCombustible[]
 
   @@map("gasolineras")
 }
-
 model RegistroCombustible {
   id              Int        @id @default(autoincrement())
   userId          Int        
@@ -206,4 +212,22 @@ model RegistroRutaDiaria {
   createdAt    DateTime @default(now())
 
   @@map("registros_rutas_diarias")
+}
+model KardexVehiculo {
+  id                 Int      @id @default(autoincrement())
+  vehiculoId         Int
+  vehiculo           Vehiculo @relation(fields: [vehiculoId], references: [id], onDelete: Cascade)
+  
+  fechaTransaccion   DateTime @default(now())
+  tipoMovimiento     String
+  
+  kmEnEseMomento     Float
+  kmMantenimiento    Float
+  costoTransaccion   Float
+  taller             String?
+  factura            String?
+  choferEnEseMomento String?
+  observaciones      String?  @db.Text
+
+  @@map("kardex_vehiculos")
 }

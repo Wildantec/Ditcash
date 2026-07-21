@@ -3,76 +3,188 @@
 import { prisma } from '@/lib/prisma'
 import * as ExcelJS from 'exceljs'
 
-export async function exportarVehiculosExcel() {
+// 🚙 REPORTE DINÁMICO MULTI-PESTAÑA ORIENTADO AL KARDEX LOGÍSTICO COMPLETO
+export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedorId?: string; fechaDesde?: string; fechaHasta?: string }) {
   try {
-    const vehiculos = await prisma.vehiculo.findMany({
-      orderBy: { placa: 'asc' },
-      include: { asignaciones: { where: { fechaFin: null }, include: { user: true } } }
-    })
+    const filtroPlaca = filtros?.placa || ''
+    const filtroVendedor = filtros?.vendedorId || ''
+    const fechaDesde = filtros?.fechaDesde || ''
+    const fechaHasta = filtros?.fechaHasta || ''
 
     const workbook = new ExcelJS.Workbook()
-    const ws = workbook.addWorksheet('Control de Flota', { views: [{ showGridLines: true }] })
-    
-    ws.getCell('A1').value = 'DITCASH - ESTADO GLOBAL DE UNIDADES'
-    ws.getCell('A1').font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF001F3F' }, italic: true }
-    ws.getCell('A2').value = 'CONTROL DE KILOMETRAJES E INTERVALOS DE MANTENIMIENTO'
-    ws.getCell('A2').font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFB800' } }
 
-    const headers = ['PLACA', 'MARCA / MODELO', 'CONDUCTOR ASIGNADO', 'KILOMETRAJE ACTUAL', 'ÚLTIMO CAMBIO ACEITE', 'KM TRANSCURRIDOS', 'ESTADO MECÁNICO']
-    ws.getRow(4).values = headers
-    ws.getRow(4).height = 24
-    
-    ws.getRow(4).eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001F3F' } }
-      cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
-      cell.alignment = { horizontal: 'center', vertical: 'middle' }
-    })
+    // Estilos Corporativos Estándar de DITEC
+    const estiloHeader = {
+      font: { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001F3F' } },
+      alignment: { horizontal: 'center', vertical: 'middle' },
+      border: {
+        top: { style: 'thin', color: { argb: 'FFCBD5E1' } }, bottom: { style: 'medium', color: { argb: 'FF94A3B8' } },
+        left: { style: 'thin', color: { argb: 'FFCBD5E1' } }, right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
+      }
+    }
 
-    vehiculos.forEach((v, idx) => {
-      const rowNum = 5 + idx
-      const row = ws.getRow(rowNum)
-      const esCritico = v.alertaMantenimiento
-      const chofer = v.asignaciones?.[0]?.user?.nombre || 'SIN ASIGNAR'
+    const estiloCelda = {
+      font: { name: 'Arial', size: 10 },
+      border: {
+        top: { style: 'thin', color: { argb: 'FFE2E8F0' } }, bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+        left: { style: 'thin', color: { argb: 'FFE2E8F0' } }, right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+      }
+    }
 
-      row.values = [
-        v.placa,
-        v.marcaModelo,
-        chofer.toUpperCase(),
-        v.kmActual,
-        v.kmUltimoAceite,
-        { formula: `=C${rowNum}-D${rowNum}` },
-        esCritico ? 'MANTENIMIENTO CRÍTICO' : 'ÓPTIMO'
-      ]
+    const estiloTotal = {
+      font: { name: 'Arial', size: 10, bold: true, color: { argb: 'FF001F3F' } },
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } },
+      border: { top: { style: 'thin', color: { argb: 'FF94A3B8' } }, bottom: { style: 'double', color: { argb: 'FF000000' } } }
+    }
 
-      row.eachCell((cell, colNum: number) => {
-        cell.font = { name: 'Arial', size: 10 }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } }, bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } }, right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
-        }
-        if (colNum === 1) { cell.font = { name: 'Arial', size: 10, bold: true }; cell.alignment = { horizontal: 'center' } }
-        if (colNum >= 3 && colNum <= 6) { cell.numFmt = '#,##0'; cell.alignment = { horizontal: 'right' } }
-        if (colNum === 7) {
-          cell.alignment = { horizontal: 'center' }
-          if (esCritico) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEB' } }
-            cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFCC0000' } }
-          } else {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAFAF1' } }
-            cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF27AE60' } }
+    // Cabeceras globales del Kardex
+    const headersKardex = [
+      'FECHA REGISTRO', 
+      'CONDUCTOR', 
+      'PLACA VEHÍCULO', 
+      'MARCA / MODELO', 
+      'KM INICIAL', 
+      'KM RECORRIDOS', 
+      'KM ENTRADA / ACTUAL', 
+      'TALLER / MOVIMIENTO',
+      'N° COMPROBANTE',
+      'DETALLE TRABAJOS REALIZADOS', 
+      'VALOR MANTENIMIENTO'
+    ]
+
+    // 1. OBTENCIÓN Y FILTRADO BASE DE LOS DATOS DEL KARDEX
+    const todoElKardex = await prisma.kardexVehiculo.findMany({
+      include: {
+        vehiculo: {
+          include: {
+            asignaciones: { where: { fechaFin: null }, include: { user: true } }
           }
         }
+      },
+      orderBy: { fechaTransaccion: 'desc' }
+    })
+
+    const vendedores = await prisma.user.findMany({ where: { rol: 'VENDEDOR' } })
+
+    // Filtrado reactivo de la data que va a la hoja General
+    const kardexGeneralFiltrado = todoElKardex.filter((k) => {
+      const vendedorObj = vendedores.find(v => v.id.toString() === filtroVendedor)
+      const nombreVendedorFiltro = vendedorObj?.nombre ? vendedorObj.nombre.toUpperCase() : ''
+      
+      const cumpleVendedor = filtroVendedor === '' || 
+        k.choferEnEseMomento?.toUpperCase().includes(nombreVendedorFiltro) ||
+        k.vehiculo?.asignaciones?.[0]?.userId?.toString() === filtroVendedor
+
+      const cumplePlaca = filtroPlaca === '' || k.vehiculo?.placa === filtroPlaca
+      
+      let cumpleFecha = true
+      if (k.fechaTransaccion) {
+        const fechaK = new Date(k.fechaTransaccion)
+        if (fechaDesde) {
+          const desde = new Date(`${fechaDesde}T00:00:00`)
+          if (fechaK < desde) cumpleFecha = false
+        }
+        if (fechaHasta) {
+          const hasta = new Date(`${fechaHasta}T23:59:59`)
+          if (fechaK > hasta) cumpleFecha = false
+        }
+      }
+      return cumpleVendedor && cumplePlaca && cumpleFecha
+    })
+
+    // ==========================================
+    // 🚀 HOJA 1: PESTAÑA GENERAL (SIEMPRE VA)
+    // ==========================================
+    const wsGeneral = workbook.addWorksheet('General', { views: [{ showGridLines: true }] })
+    wsGeneral.getCell('A1').value = 'DITCASH - HISTORIAL LOGÍSTICO Y CONTABLE GENERAL'
+    wsGeneral.getCell('A1').font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF001F3F' } }
+    
+    wsGeneral.getRow(3).values = headersKardex
+    wsGeneral.getRow(3).height = 24
+    wsGeneral.getRow(3).eachCell((cell) => { cell.style = estiloHeader as any })
+
+    let totalCostoGeneral = 0
+    kardexGeneralFiltrado.forEach((k, idx) => {
+      const rowNum = 4 + idx
+      const row = wsGeneral.getRow(rowNum)
+      const kmIn = k.kmMantenimiento || 0
+      const kmOut = k.kmEnEseMomento || 0
+      const kmNeto = kmOut >= kmIn ? kmOut - kmIn : 0
+      const costo = Number(k.costoTransaccion || 0)
+      totalCostoGeneral += costo
+
+      row.values = [
+        k.fechaTransaccion ? k.fechaTransaccion.toISOString().split('T')[0] : 'S/F',
+        k.choferEnEseMomento || 'SIN ASIGNAR',
+        k.vehiculo?.placa || 'S/P',
+        k.vehiculo?.marcaModelo?.toUpperCase() || 'S/M',
+        kmIn,
+        kmNeto,
+        kmOut,
+        k.taller || k.tipoMovimiento || 'S/N',
+        k.factura || 'S/F',
+        k.observaciones || 'SIN ESPECIFICACIONES',
+        costo
+      ]
+
+      row.eachCell((cell, colNum) => {
+        cell.style = estiloCelda as any
+        if ([1, 3, 8, 9].includes(colNum)) cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        if ([5, 6, 7].includes(colNum)) { cell.numFmt = '#,##0'; cell.alignment = { horizontal: 'right' } }
+        if (colNum === 11) { cell.numFmt = '$#,##0.00'; cell.alignment = { horizontal: 'right' } }
       })
     })
 
-    ws.columns.forEach((col: any) => {
-      let maxLen = 14
-      col.eachCell({ includeEmpty: true }, (cell: any) => {
-        const val = cell.value ? cell.value.toString() : ''
-        if (val.length > maxLen) maxLen = val.length
-      })
-      col.width = maxLen + 4
+    const totalGIndex = 4 + kardexGeneralFiltrado.length
+    const rowTotalG = wsGeneral.getRow(totalGIndex)
+    rowTotalG.values = ['TOTAL ACUMULADO LIQUIDADO', '', '', '', '', '', '', '', '', '', totalCostoGeneral]
+    rowTotalG.eachCell((cell, colNum) => {
+      cell.style = estiloTotal as any
+      if (colNum === 11) { cell.numFmt = '$#,##0.00'; cell.alignment = { horizontal: 'right' } }
     })
+    autoAjustarColumnas(wsGeneral)
+
+    // ==========================================
+    // 🚀 LÓGICA DE PESTAÑAS SECUNDARIAS DINÁMICAS
+    // ==========================================
+
+    // ESCENARIO A: FILTROS COMPLETAMENTE VACÍOS -> Hojas separadas por Carro (Placa + Vendedor)
+    if (!filtroPlaca && !filtroVendedor) {
+      const placasUnicas = Array.from(new Set(kardexGeneralFiltrado.map(k => k.vehiculo?.placa).filter(Boolean)))
+      
+      placasUnicas.forEach((nPlaca) => {
+        const registrosDePlaca = kardexGeneralFiltrado.filter(k => k.vehiculo?.placa === nPlaca)
+        const ultimoChofer = registrosDePlaca[0]?.choferEnEseMomento || 'SIN ASIGNAR'
+        const nombreHoja = `${nPlaca} - ${ultimoChofer}`.toUpperCase().substring(0, 31).replace(/[:\\?*\[\]]/g, '')
+
+        crearHojaKardexEspecifica(workbook, nombreHoja, registrosDePlaca, headersKardex, estiloHeader, estiloCelda, estiloTotal)
+      })
+    }
+    
+    // ESCENARIO B: SE FILTRÓ POR PLACA -> Hojas separadas por los nombres de los VENDEDORES que usaron ese carro
+    else if (filtroPlaca && !filtroVendedor) {
+      const vendedoresDeEstaPlaca = Array.from(new Set(kardexGeneralFiltrado.map(k => k.choferEnEseMomento).filter(Boolean)))
+
+      vendedoresDeEstaPlaca.forEach((nombreChofer) => {
+        const registrosDelChofer = kardexGeneralFiltrado.filter(k => k.choferEnEseMomento === nombreChofer)
+        const nombreHoja = `${nombreChofer}`.toUpperCase().substring(0, 31).replace(/[:\\?*\[\]]/g, '')
+
+        crearHojaKardexEspecifica(workbook, nombreHoja, registrosDelChofer, headersKardex, estiloHeader, estiloCelda, estiloTotal)
+      })
+    }
+
+    // ESCENARIO C: SE FILTRÓ POR VENDEDOR -> Hojas separadas por las PLACAS de los carros que manejó ese vendedor
+    else if (filtroVendedor && !filtroPlaca) {
+      const placasDelVendedor = Array.from(new Set(kardexGeneralFiltrado.map(k => k.vehiculo?.placa).filter(Boolean)))
+
+      placasDelVendedor.forEach((nPlaca) => {
+        const registrosDeEstaPlaca = kardexGeneralFiltrado.filter(k => k.vehiculo?.placa === nPlaca)
+        const nombreHoja = `PLACA ${nPlaca}`.toUpperCase().substring(0, 31).replace(/[:\\?*\[\]]/g, '')
+
+        crearHojaKardexEspecifica(workbook, nombreHoja, registrosDeEstaPlaca, headersKardex, estiloHeader, estiloCelda, estiloTotal)
+      })
+    }
 
     const buffer = await workbook.xlsx.writeBuffer()
     return { success: true, data: Array.from(new Uint8Array(buffer)) }
@@ -80,161 +192,68 @@ export async function exportarVehiculosExcel() {
     return { success: false, error: error.message }
   }
 }
-export async function exportarEstacionesExcel() {
-  try {
-    const gasolineras = await prisma.gasolinera.findMany({ orderBy: { nombre: 'asc' } })
 
-    const workbook = new ExcelJS.Workbook()
-    const ws = workbook.addWorksheet('Puntos Autorizados', { views: [{ showGridLines: true }] })
-    
-    ws.getCell('A1').value = 'DITCASH - CATÁLOGO DE PROVEEDORES'
-    ws.getCell('A1').font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF001F3F' }, italic: true }
-    ws.getCell('A2').value = 'ESTACIONES DE SERVICIO Y CONVENIOS CORPORATIVOS'
-    ws.getCell('A2').font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFB800' } }
+// 🛠️ FUNCIÓN AUXILIAR PARA GENERAR CADA HOJA DE MANERA TRANSPARENTE E INMUTABLE
+function crearHojaKardexEspecifica(workbook: ExcelJS.Workbook, nombreHoja: string, registros: any[], headers: string[], eHeader: any, eCelda: any, eTotal: any) {
+  const ws = workbook.addWorksheet(nombreHoja, { views: [{ showGridLines: true }] })
+  
+  ws.getCell('A1').value = `DETALLE OPERATIVO DE FILA: ${nombreHoja}`
+  ws.getCell('A1').font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF001F3F' } }
+  
+  ws.getRow(3).values = headers
+  ws.getRow(3).height = 24
+  ws.getRow(3).eachCell((cell) => { cell.style = eHeader })
 
-    const headers = ['ESTACIÓN DE SERVICIO', 'UBICACIÓN / CIUDAD', 'CONVENIO DE CRÉDITO']
-    ws.getRow(4).values = headers
-    ws.getRow(4).height = 24
-    
-    ws.getRow(4).eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001F3F' } }
-      cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
-      cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  let subtotalCosto = 0
+  registros.forEach((k, idx) => {
+    const rowNum = 4 + idx
+    const row = ws.getRow(rowNum)
+    const kmIn = k.kmMantenimiento || 0
+    const kmOut = k.kmEnEseMomento || 0
+    const kmNeto = kmOut >= kmIn ? kmOut - kmIn : 0
+    const costo = Number(k.costoTransaccion || 0)
+    subtotalCosto += costo
+
+    row.values = [
+      k.fechaTransaccion ? k.fechaTransaccion.toISOString().split('T')[0] : 'S/F',
+      k.choferEnEseMomento || 'SIN ASIGNAR',
+      k.vehiculo?.placa || 'S/P',
+      k.vehiculo?.marcaModelo?.toUpperCase() || 'S/M',
+      kmIn,
+      kmNeto,
+      kmOut,
+      k.taller || k.tipoMovimiento || 'S/N',
+      k.factura || 'S/F',
+      k.observaciones || 'SIN ESPECIFICACIONES',
+      costo
+    ]
+
+    row.eachCell((cell, colNum) => {
+      cell.style = eCelda
+      if ([1, 3, 8, 9].includes(colNum)) cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      if ([5, 6, 7].includes(colNum)) { cell.numFmt = '#,##0'; cell.alignment = { horizontal: 'right' } }
+      if (colNum === 11) { cell.numFmt = '$#,##0.00'; cell.alignment = { horizontal: 'right' } }
     })
+  })
 
-    gasolineras.forEach((g, idx) => {
-      const rowNum = 5 + idx
-      const row = ws.getRow(rowNum)
+  const totalIndex = 4 + registros.length
+  const rowTotal = ws.getRow(totalIndex)
+  rowTotal.values = ['TOTAL ACUMULADO HOJA', '', '', '', '', '', '', '', '', '', subtotalCosto]
+  rowTotal.eachCell((cell, colNum) => {
+    cell.style = eTotal
+    if (colNum === 11) { cell.numFmt = '$#,##0.00'; cell.alignment = { horizontal: 'right' } }
+  })
 
-      row.values = [
-        g.nombre.toUpperCase(),
-        g.ciudad.toUpperCase(),
-        g.tieneConvenio ? 'AUTORIZADO / LÍNEA ABIERTA' : 'SIN CONVENIO / EXTERNO'
-      ]
-
-      row.eachCell((cell, colNum: number) => {
-        cell.font = { name: 'Arial', size: 10 }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } }, bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } }, right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
-        }
-        if (rowNum % 2 === 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        if (colNum === 3) {
-          cell.alignment = { horizontal: 'center' }
-          if (g.tieneConvenio) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAFAF1' } }
-            cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF27AE60' } }
-          } else {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }
-            cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF94A3B8' } }
-          }
-        }
-      })
-    })
-
-    ws.columns.forEach((col: any) => {
-      let maxLen = 16
-      col.eachCell({ includeEmpty: true }, (cell: any) => {
-        const val = cell.value ? cell.value.toString() : ''
-        if (val.length > maxLen) maxLen = val.length
-      })
-      col.width = maxLen + 4
-    })
-
-    const buffer = await workbook.xlsx.writeBuffer()
-    return { success: true, data: Array.from(new Uint8Array(buffer)) }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
+  autoAjustarColumnas(ws)
 }
-export async function exportarFacturasExcel(filtros?: { fechaDesde?: string; fechaHasta?: string; placa?: string; gasolineraId?: string }) {
-  try {
-    const whereClause: any = {}
-    if (filtros?.fechaDesde || filtros?.fechaHasta) {
-      whereClause.fechaFactura = {}
-      if (filtros.fechaDesde) whereClause.fechaFactura.gte = new Date(filtros.fechaDesde)
-      if (filtros.fechaHasta) whereClause.fechaFactura.lte = new Date(filtros.fechaHasta)
-    }
-    if (filtros?.placa) {
-      whereClause.vehiculo = { placa: filtros.placa }
-    }
-    if (filtros?.gasolineraId) {
-      whereClause.gasolineraId = parseInt(filtros.gasolineraId)
-    }
 
-    const facturas = await prisma.registroCombustible.findMany({
-      where: whereClause,
-      orderBy: { fechaFactura: 'desc' },
-      include: { vehiculo: true, gasolinera: true, user: true }
+function autoAjustarColumnas(ws: ExcelJS.Worksheet) {
+  ws.columns.forEach((col: any) => {
+    let maxLen = 14
+    col.eachCell({ includeEmpty: true }, (cell: any) => {
+      const val = cell.value ? cell.value.toString() : ''
+      if (val.length > maxLen) maxLen = val.length
     })
-
-    const workbook = new ExcelJS.Workbook()
-    const ws = workbook.addWorksheet('Auditoría Comprobantes', { views: [{ showGridLines: true }] })
-    
-    ws.getCell('A1').value = 'DITCASH - HISTORIAL DE FACTURAS'
-    ws.getCell('A1').font = { name: 'Arial', size: 13, bold: true, color: { argb: 'FF001F3F' }, italic: true }
-    ws.getCell('A2').value = 'FISCALIZACIÓN OPERATIVA DE QUEMA Y RENDIMIENTOS'
-    ws.getCell('A2').font = { name: 'Arial', size: 9, bold: true, color: { argb: 'FFFFB800' } }
-
-    const headers = ['FECHA', 'NÚMERO FACTURA', 'PLACA VEHÍCULO', 'ESTACIÓN', 'CHOFER', 'KM AUDITADOS', 'GALONES', 'MÉTODO PAGO', 'TOTAL ($)', 'CONVENIO']
-    ws.getRow(4).values = headers
-    ws.getRow(4).height = 24
-    
-    ws.getRow(4).eachCell((cell) => {
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001F3F' } }
-      cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } }
-      cell.alignment = { horizontal: 'center', vertical: 'middle' }
-    })
-
-    facturas.forEach((f, idx) => {
-      const rowNum = 5 + idx
-      const row = ws.getRow(rowNum)
-
-      row.values = [
-        f.fechaFactura.toISOString().split('T')[0],
-        f.numFactura,
-        f.vehiculo?.placa || '',
-        f.gasolinera?.nombre || '',
-        f.user?.nombre || 'S/N',
-        f.kmRecorridos,
-        f.galones,
-        'CONVENIO',
-        f.precioTotal,
-        f.fueraDeConvenio ? 'FUERA CONVENIO' : 'CONVENIO OK'
-      ]
-
-      row.eachCell((cell, colNum: number) => {
-        cell.font = { name: 'Arial', size: 10 }
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'FFCBD5E1' } }, bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } },
-          left: { style: 'thin', color: { argb: 'FFCBD5E1' } }, right: { style: 'thin', color: { argb: 'FFCBD5E1' } }
-        }
-        if (rowNum % 2 === 0) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
-        if (colNum === 1 || colNum === 2 || colNum === 3 || colNum === 8) cell.alignment = { horizontal: 'center' }
-        if (colNum === 6 || colNum === 7) { cell.numFmt = '#,##0.00'; cell.alignment = { horizontal: 'right' } }
-        if (colNum === 9) { cell.numFmt = '$#,##0.00'; cell.alignment = { horizontal: 'right' } }
-        if (colNum === 10) {
-          cell.alignment = { horizontal: 'center' }
-          if (f.fueraDeConvenio) {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEB' } }
-            cell.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFCC0000' } }
-          }
-        }
-      })
-    })
-
-    ws.columns.forEach((col: any) => {
-      let maxLen = 14
-      col.eachCell({ includeEmpty: true }, (cell: any) => {
-        const val = cell.value ? cell.value.toString() : ''
-        if (val.length > maxLen) maxLen = val.length
-      })
-      col.width = maxLen + 4
-    })
-
-    const buffer = await workbook.xlsx.writeBuffer()
-    return { success: true, data: Array.from(new Uint8Array(buffer)) }
-  } catch (error: any) {
-    return { success: false, error: error.message }
-  }
+    col.width = maxLen + 4
+  })
 }

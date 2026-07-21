@@ -12,6 +12,7 @@ import {
 interface SidebarProps {
   role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION' | 'SERVICIO_TECNICO'
 }
+
 const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
   VENDEDOR: ['campanas', 'premios', 'inventario'],
   MARKETING: ['vendedores', 'campanas', 'canjes', 'historial', 'premios', 'inventario'],
@@ -59,11 +60,12 @@ export default function SidebarDitcash({ role }: SidebarProps) {
     } else if (pathname.includes('/vendedores') || pathname.includes('/campanas') || pathname.includes('/canjes')) {
       setOpenSections(prev => ({ ...prev, operaciones: true }))
     } else if (pathname.includes('/premios') || pathname.includes('/inventario') || pathname.includes('/bodegas')) {
-      setOpenSections(prev => ({ ...prev, incentivos: true }))
+      setOpenSections(prev => ({ ...prev, incentives: true }))
     } else if (pathname.includes('/usuarios') || pathname.includes('/permisos')) {
       setOpenSections(prev => ({ ...prev, configuracion: true }))
     }
   }, [pathname])
+
   const tieneAccAccessModulo = (moduloId: string) => {
     if (role === 'ADMIN') return true
 
@@ -116,9 +118,10 @@ export default function SidebarDitcash({ role }: SidebarProps) {
       id: 'servicio_tecnico',
       label: 'Servicio Técnico',
       icon: Wrench,
+      // 🚀 CORREGIDO: Se removió 'VENDEDOR' para que no vea Servicio Técnico
       forzarMostrar: role === 'ADMIN' || role === 'SERVICIO_TECNICO',
       submodulos: [
-        { href: '/dashboard/combustible/vehiculos', label: 'Flota de Vehículos', permisoKey: 'vehiculos' },
+        { href: '/dashboard/combustible/vehiculos', label: 'Flota de Vehículos', permisoKey: 'vehiculos' }
       ]
     },
     {

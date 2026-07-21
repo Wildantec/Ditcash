@@ -25,12 +25,13 @@ export default function LoginPage() {
         return
       }
 
-      // 🟢 CONTROL DE REDIRECCIÓN EN CALIENTE:
-      // Ignoramos cualquier salto interno que intente hacer la Server Action vieja
-      // y forzamos a todo el personal técnico de DITCASH a ingresar a la URL compartida plana.
       window.location.href = '/dashboard'
       
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message === 'NEXT_REDIRECT' || err?.digest?.startsWith('NEXT_REDIRECT')) {
+        return
+      }
+
       console.error("Error en login:", err)
       setError("Error de comunicación con el servidor central.")
       setLoading(false)

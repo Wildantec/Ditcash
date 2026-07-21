@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { registrarCierreRutaDiario, registrarInicioJornada } from '@/app/actions/combustible'
-import { Navigation, Gauge, Car, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react'
+import { Navigation, Gauge, AlertTriangle, Loader2 } from 'lucide-react'
 import Swal from 'sweetalert2'
 
 interface VistaMovilProps {
@@ -16,21 +16,18 @@ interface VistaMovilProps {
 export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaInicial, placaSugerida, kmSugerido }: VistaMovilProps) {
   const [rutaAbierta, setRutaAbierta] = useState(rutaAbiertaInicial)
   const [loading, setLoading] = useState(false)
-  const [placa, setPlaca] = useState(rutaAbiertaInicial ? rutaAbiertaEntries().placaCarro : placaSugerida)
-  const [kmTablero, setKmTablero] = useState(rutaAbiertaAnterior() ? '' : kmSugerido.toString())
+  const [placa, setPlaca] = useState(rutaAbiertaInicial ? rutaAbiertaInicial.placaCarro : placaSugerida)
+  const [kmTablero, setKmTablero] = useState(rutaAbiertaInicial ? '' : kmSugerido.toString())
 
   function rutaAbiertaAnterior() {
     return !!rutaAbierta
-  }
-
-  function rutaAbiertaEntries() {
-    return rutaAbierta || {}
   }
 
   const handleManejoJornada = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
+    // 1. ABRIR JORNADA (Matutina - Registro Manual)
     if (!rutaAbiertaAnterior()) {
       const res = await registrarInicioJornada({
         userId,
@@ -49,8 +46,9 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
         Swal.fire('Error', res.error, 'error')
         setLoading(false)
       }
-    } else {
-
+    } 
+    // 2. CERRAR JORNADA (Vespertina - Registro Manual)
+    else {
       const carroSeleccionado = vehiculos.find(v => v.placa === rutaAbierta.placaCarro)
       const kmInicialDeLaManana = carroSeleccionado?.kmActual || 0
       const kmFinalDigitado = parseFloat(kmTablero)
@@ -66,6 +64,7 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
         return
       }
 
+      // Calculamos la diferencia neta de kilómetros recorridos en el día
       const kmRecorridosNetos = kmFinalDigitado - kmInicialDeLaManana
 
       const res = await registrarCierreRutaDiario({
@@ -102,6 +101,7 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
             {rutaAbiertaAnterior() ? 'DITCASH - TERMINAR TRABAJO' : 'DITCASH - TAXÍMETRO VENDEDOR'}
           </p>
         </header>
+
         {rutaAbiertaAnterior() && (
           <div className="mb-6 bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3 text-left">
             <AlertTriangle className="text-rose-500 flex-shrink-0 mt-0.5" size={16} />
@@ -135,6 +135,7 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
               </select>
             </div>
           </div>
+
           <div className="space-y-1 text-left">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-4">
               {rutaAbiertaAnterior() ? 'Kilometraje Final del Tablero *' : 'Confirmar Kilometraje Inicial *'}
@@ -155,6 +156,7 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
               * Digita exactamente el número entero que marca el tablero del vehículo.
             </p>
           </div>
+
           <div className="pt-4">
             <button
               disabled={loading || !placa}
@@ -174,9 +176,7 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
               )}
             </button>
           </div>
-
         </form>
-
       </div>
     </div>
   )

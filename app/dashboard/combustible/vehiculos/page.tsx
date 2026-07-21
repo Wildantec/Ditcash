@@ -4,15 +4,28 @@ import ModuloVehiculosAdmin from '../../../../components/combustible/Parametriza
 export const dynamic = 'force-dynamic'
 
 export default async function ParametrizacionCombustiblePage() {
-  const vehiculos = await prisma.vehiculo.findMany({
-    orderBy: { createdAt: 'desc' },
+  // 🚀 Extraemos las transacciones del Kardex para alimentar la tabla abierta
+  const registrosKardex = await prisma.kardexVehiculo.findMany({
     include: {
-      asignaciones: {
-        where: { fechaFin: null },
-        include: { user: true }
+      vehiculo: {
+        include: {
+          asignaciones: {
+            where: { fechaFin: null },
+            include: { user: true }
+          }
+        }
       }
+    },
+    orderBy: {
+      fechaTransaccion: 'desc' // Orden Cronológico Inverso (Últimos movimientos primero)
     }
   })
+
+  // Catálogo base de vehículos para alimentar listas desplegables de formularios
+  const vehiculos = await prisma.vehiculo.findMany({
+    orderBy: { placa: 'asc' }
+  })
+
   const vendedoresAraujo = await prisma.user.findMany({
     where: { rol: 'VENDEDOR', activo: true },
     orderBy: { nombre: 'asc' }
@@ -20,7 +33,8 @@ export default async function ParametrizacionCombustiblePage() {
 
   return (
     <ModuloVehiculosAdmin 
-      vehiculosIniciales={vehiculos} 
+      kardexInicial={registrosKardex}
+      vehiculos={vehiculos} 
       vendedores={vendedoresAraujo} 
     />
   )
