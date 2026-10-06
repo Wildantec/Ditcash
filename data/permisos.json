@@ -1,0 +1,122 @@
+[
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "vendedores",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "campanas",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "canjes",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "historial",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "premios",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "inventario",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "bodegas",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "vehiculos",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "mantenimientos",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "vehiculos_cont",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "estaciones",
+    "ver": true,
+    "crear": true,
+    "editar": true,
+    "eliminar": true
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "facturas_comb",
+    "ver": true,
+    "crear": true,
+    "editar": true,
+    "eliminar": true
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "facturacion",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "cobranzas",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "CONTABILIDAD",
+    "modulo": "usuarios",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  }
+]

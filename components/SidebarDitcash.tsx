@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 
 interface SidebarProps {
-  role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION' | 'SERVICIO_TECNICO'
+  role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION' | 'SERVICIO_TECNICO' | string
 }
 
 const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
@@ -23,8 +23,9 @@ const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
   ADMIN: []
 };
 
-export default function SidebarDitcash({ role }: SidebarProps) {
+export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
   const pathname = usePathname()
+  const role = roleProp?.toUpperCase() || 'VENDEDOR' // Normalizamos a mayúsculas
   const [isOpen, setIsOpen] = useState(false)
   const [permisosCargados, setPermisosCargados] = useState<any[]>([])
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
@@ -60,7 +61,7 @@ export default function SidebarDitcash({ role }: SidebarProps) {
     } else if (pathname.includes('/vendedores') || pathname.includes('/campanas') || pathname.includes('/canjes')) {
       setOpenSections(prev => ({ ...prev, operaciones: true }))
     } else if (pathname.includes('/premios') || pathname.includes('/inventario') || pathname.includes('/bodegas')) {
-      setOpenSections(prev => ({ ...prev, incentives: true }))
+      setOpenSections(prev => ({ ...prev, incentivos: true })) // ◄ Corregido: 'incentives' por 'incentivos'
     } else if (pathname.includes('/usuarios') || pathname.includes('/permisos')) {
       setOpenSections(prev => ({ ...prev, configuracion: true }))
     }
@@ -118,7 +119,6 @@ export default function SidebarDitcash({ role }: SidebarProps) {
       id: 'servicio_tecnico',
       label: 'Servicio Técnico',
       icon: Wrench,
-      // 🚀 CORREGIDO: Se removió 'VENDEDOR' para que no vea Servicio Técnico
       forzarMostrar: role === 'ADMIN' || role === 'SERVICIO_TECNICO',
       submodulos: [
         { href: '/dashboard/combustible/vehiculos', label: 'Flota de Vehículos', permisoKey: 'vehiculos' }

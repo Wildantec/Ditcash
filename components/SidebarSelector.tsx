@@ -22,9 +22,18 @@ export default async function SidebarSelector() {
     }
     const rolLimpio = (usuarioLocal.rol || 'VENDEDOR').toUpperCase().trim()
 
-    const rolesPermitidos = ['ADMIN', 'MARKETING', 'VENDEDOR']
+    const rolesPermitidos = [
+      'ADMIN', 
+      'MARKETING', 
+      'VENDEDOR', 
+      'CONTABILIDAD', 
+      'COBRANZAS', 
+      'FACTURACION', 
+      'SERVICIO_TECNICO'
+    ]
+
     const rolFinal = rolesPermitidos.includes(rolLimpio) 
-      ? (rolLimpio as 'ADMIN' | 'MARKETING' | 'VENDEDOR')
+      ? rolLimpio 
       : 'VENDEDOR'
 
     return <SidebarDitcash role={rolFinal} />

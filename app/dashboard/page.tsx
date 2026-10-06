@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import DashboardVendedor from '@/components/dashboard/DashboardVendedor'
 import DashboardAdmin from '@/components/dashboard/DashboardAdmin'
 import DashboardMarketing from '@/components/dashboard/DashboardMarketing'
-import DashboardServicioTecnico from '@/app/dashboard/servicio-tecnico/page' // ◄ Importamos tu panel técnico
+import DashboardServicioTecnico from '@/app/dashboard/servicio-tecnico/page'
+import DashboardContabilidad from '@/components/dashboard/DashboardContabilidad'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,6 @@ export default async function DashboardRaizPage() {
   }
 
   try {
-    // 🟢 ENRUTAMIENTO INTELIGENTE SEGÚN EL ROL REAL DE BASE DE DATOS
     if (role === 'ADMIN') {
       return <DashboardAdmin />
     }
@@ -25,15 +25,14 @@ export default async function DashboardRaizPage() {
       return <DashboardMarketing />
     }
     if (role === 'SERVICIO_TECNICO') {
-      return <DashboardServicioTecnico /> // ◄ Redirección nativa al panel de soporte
+      return <DashboardServicioTecnico />
     }
     
     // Aquí puedes ir mapeando los otros roles cuando crees sus vistas:
-    // if (role === 'CONTABILIDAD') return <DashboardContabilidad />
+     if (role === 'CONTABILIDAD') return <DashboardContabilidad />
     // if (role === 'COBRANZAS') return <DashboardCobranzas />
     // if (role === 'FACTURACION') return <DashboardFacturacion />
 
-    // Si no es ninguno de los roles administrativos o de soporte, es un asesor en campo
     return <DashboardVendedor />
 
   } catch (err) {
