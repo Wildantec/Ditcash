@@ -1,13 +1,76 @@
-'use client'
+import { prisma } from '@/lib/prisma'
+import { Fuel, FileSpreadsheet, Calculator, TrendingUp, AlertCircle, Clock } from 'lucide-react'
 
-import { Fuel, FileText, FileSpreadsheet, Calculator, TrendingUp, AlertCircle, Clock } from 'lucide-react'
+export default async function DashboardContabilidad() {
+  const inicioMes = new Date()
+  inicioMes.setDate(1)
+  inicioMes.setHours(0, 0, 0, 0)
+  const [
+    gastoMesAggregate,
+    facturasPorValidarCount,
+    creditoGasolinerasAggregate,
+    alertasVehiculosCount,
+    ultimasFacturas
+  ] = await Promise.all([
+    prisma.registroCombustible.aggregate({
+      where: {
+        createdAt: { gte: inicioMes }
+      },
+      _sum: { precioTotal: true }
+    }),
+    prisma.registroCombustible.count({
+      where: { fueraDeConvenio: true }
+    }),
+    prisma.gasolinera.aggregate({
+      _sum: { montoActual: true }
+    }),
+    prisma.vehiculo.count({
+      where: { alertaMantenimiento: true }
+    }),
+    prisma.registroCombustible.findMany({
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: true,
+        vehiculo: true,
+        gasolinera: true
+      }
+    })
+  ])
 
-export default function DashboardContabilidad() {
+  // 3. Formatear valores
+  const totalGastoMes = gastoMesAggregate._sum.precioTotal || 0
+  const totalCreditoEstaciones = creditoGasolinerasAggregate._sum.montoActual || 0
+
   const kpisFinancieros = [
-    { title: 'Gasto Combustible Mes', value: '$ 1,240.50', icon: Fuel, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { title: 'Facturas por Validar', value: '8', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { title: 'Crédito Estaciones', value: '$ 3,500.00', icon: FileSpreadsheet, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { title: 'Alertas de Desviación', value: '2', icon: AlertCircle, color: 'text-rose-600', bg: 'bg-rose-50' }
+    { 
+      title: 'Gasto Combustible Mes', 
+      value: `$ ${totalGastoMes.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+      icon: Fuel, 
+      color: 'text-amber-600', 
+      bg: 'bg-amber-50' 
+    },
+    { 
+      title: 'Facturas Fuera Convenio', 
+      value: facturasPorValidarCount.toString(), 
+      icon: Clock, 
+      color: 'text-blue-600', 
+      bg: 'bg-blue-50' 
+    },
+    { 
+      title: 'Crédito Estaciones', 
+      value: `$ ${totalCreditoEstaciones.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 
+      icon: FileSpreadsheet, 
+      color: 'text-emerald-600', 
+      bg: 'bg-emerald-50' 
+    },
+    { 
+      title: 'Alertas de Flota', 
+      value: alertasVehiculosCount.toString(), 
+      icon: AlertCircle, 
+      color: 'text-rose-600', 
+      bg: 'bg-rose-50' 
+    }
   ]
 
   return (
@@ -21,7 +84,6 @@ export default function DashboardContabilidad() {
           Auditoría de egresos, conciliación fiscal y gestión de combustible Ditec
         </p>
       </header>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {kpisFinancieros.map((kpi, idx) => {
           const Icon = kpi.icon
@@ -38,30 +100,68 @@ export default function DashboardContabilidad() {
           )
         })}
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
           <h3 className="font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2">
             <Calculator size={14} className="text-[#FFB800]" /> Últimas Facturas Ingresadas
           </h3>
-          <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest italic">
-              No hay nuevos comprobantes en cola de revisión para el día de hoy.
-            </p>
-          </div>
-        </div>
 
+          {ultimasFacturas.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    <th className="pb-3">Factura #</th>
+                    <th className="pb-3">Conductor</th>
+                    <th className="pb-3">Gasolinera</th>
+                    <th className="pb-3">Placa</th>
+                    <th className="pb-3 text-right">Monto</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50 text-xs font-bold">
+                  {ultimasFacturas.map((reg) => (
+                    <tr key={reg.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3.5 font-mono text-[#001F3F]">{reg.numFactura}</td>
+                      <td className="py-3.5 text-slate-600">{reg.user?.nombre || 'S/D'}</td>
+                      <td className="py-3.5 text-slate-600">{reg.gasolinera?.nombre || 'S/D'}</td>
+                      <td className="py-3.5 text-slate-500 font-mono">{reg.vehiculo?.placa || 'S/D'}</td>
+                      <td className="py-3.5 text-right font-black text-[#001F3F]">
+                        ${Number(reg.precioTotal).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest italic">
+                No hay nuevos comprobantes registrados en la base de datos.
+              </p>
+            </div>
+          )}
+        </div>
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
           <h3 className="font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2">
             <TrendingUp size={14} className="text-[#FFB800]" /> Resumen de Conciliación
           </h3>
-          <div className="space-y-3.5">
+          <div className="space-y-4">
             <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
-              <p className="text-[9px] font-black uppercase text-slate-400">Estado de Cierre Semanal</p>
-              <p className="text-xs font-black text-emerald-600 uppercase mt-1">● Balance Cuadrado exitosamente</p>
+              <p className="text-[9px] font-black uppercase text-slate-400">Estado de Registros</p>
+              <p className="text-xs font-black text-emerald-600 uppercase mt-1">
+                Base de datos sincronizada
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl">
+              <p className="text-[9px] font-black uppercase text-slate-400">Comprobantes Fuera de Convenio</p>
+              <p className="text-xs font-black text-amber-600 uppercase mt-1">
+                {facturasPorValidarCount} por auditar
+              </p>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   )

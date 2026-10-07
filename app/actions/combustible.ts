@@ -207,7 +207,7 @@ export async function crearVehiculoAction(data: {
         placa: placaNormalizada,
         marcaModelo: data.marcaModelo.toUpperCase().trim(),
         kmActual: data.kmActual,
-        kmUltimoAceite: data.kmActual, // Inicia el primer tramo con el kilometraje de alta
+        kmUltimoAceite: data.kmActual,
         tallerMantenimiento: "INGRESO INICIAL",
         numFacturaMantenimiento: "S/N"
       }
@@ -244,15 +244,14 @@ export async function crearVehiculoAction(data: {
   }
 }
 
-// 🛠️ 2. REGISTRAR MANTENIMIENTO (LÓGICA OPERATIVA LOGÍSTICA DE TALLER)
 export async function registrarMantenimientoAction(data: {
   placa: string;
-  kmMantenimiento: number; // KM real del tablero al llegar al taller (Ej: 25000 KM)
+  kmMantenimiento: number;
   taller: string;
   factura: string;
   costo: number;
   fechaFactura: Date;
-  descripcion: string;     // Detalle de lo realizado en el taller
+  descripcion: string;
 }) {
   try {
     const vehiculo = await prisma.vehiculo.findUnique({ 
@@ -263,23 +262,18 @@ export async function registrarMantenimientoAction(data: {
 
     const nombreChofer = vehiculo.asignaciones?.[0]?.user?.nombre || "SIN ASIGNAR"
 
-    // El KM Inicial del tramo que termina es el 'kmActual' que tenía guardado (Ej: 20000 KM)
     const kmInicialPeriodo = vehiculo.kmActual 
-    
-    // Validación de seguridad para el odómetro
     if (data.kmMantenimiento < kmInicialPeriodo) {
       return { 
         success: false, 
         error: `Error de Tablero: El kilometraje de llegada ingresado (${data.kmMantenimiento.toLocaleString()} KM) no puede ser menor al kilometraje inicial registrado anteriormente (${kmInicialPeriodo.toLocaleString()} KM).` 
       }
     }
-
-    // Actualizamos el maestro del vehículo estableciendo el nuevo punto de partida
     await prisma.vehiculo.update({
       where: { id: vehiculo.id },
       data: {
-        kmUltimoAceite: kmInicialPeriodo,      // Almacena el KM Inicial con el que arrancó este tramo
-        kmActual: data.kmMantenimiento,         // El KM de llegada al taller pasa a ser el KM Actual vigente
+        kmUltimoAceite: kmInicialPeriodo,
+        kmActual: data.kmMantenimiento,
         tallerMantenimiento: data.taller.toUpperCase().trim(),
         numFacturaMantenimiento: data.factura.toUpperCase().trim(),
         costoUltimoMantenimiento: data.costo,
@@ -288,13 +282,12 @@ export async function registrarMantenimientoAction(data: {
       }
     })
 
-    // Insertamos la auditoría inmutable en el Kardex Histórico
     await prisma.kardexVehiculo.create({
       data: {
         vehiculoId: vehiculo.id,
         tipoMovimiento: "MANTENIMIENTO",
-        kmEnEseMomento: data.kmMantenimiento,   // Columna KM Actual (Tablero de llegada)
-        kmMantenimiento: kmInicialPeriodo,     // Columna KM Inicial (Tablero de salida anterior)
+        kmEnEseMomento: data.kmMantenimiento,
+        kmMantenimiento: kmInicialPeriodo,
         costoTransaccion: data.costo,
         taller: data.taller.toUpperCase().trim(),
         factura: data.factura.toUpperCase().trim(),
@@ -310,7 +303,6 @@ export async function registrarMantenimientoAction(data: {
   }
 }
 
-// 📝 3. EDITAR REGISTRO DE VEHÍCULO (AJUSTES MANUALES)
 export async function editarVehiculoAction(
   id: number, 
   data: { 
@@ -394,7 +386,13 @@ export async function eliminarVehiculoAction(id: number) {
   }
 }
 
-export async function crearGasolineraAction(data: { nombre: string; numFactura: string; tieneConvenio: boolean; montoRecarga?: number }) {
+export async function crearGasolineraAction(data: { 
+  nombre: string; 
+  numFactura: string; 
+  tieneConvenio: boolean; 
+  montoRecarga?: number;
+  createdAt?: Date;
+}) {
   try {
     const totalRecarga = data.tieneConvenio ? (data.montoRecarga ?? 0) : 0
     await prisma.gasolinera.create({
@@ -403,16 +401,27 @@ export async function crearGasolineraAction(data: { nombre: string; numFactura: 
         numFactura: data.numFactura.toUpperCase().trim(),
         tieneConvenio: data.tieneConvenio,
         montoRecarga: totalRecarga,
-        montoActual: totalRecarga 
+        montoActual: totalRecarga,
+        ...(data.createdAt && { createdAt: new Date(data.createdAt) })
       }
     })
+    revalidatePath('/dashboard/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
   }
 }
 
-export async function editarGasolineraAction(id: number, payload: { nombre: string; numFactura: string; tieneConvenio: boolean; montoRecarga?: number }) {
+export async function editarGasolineraAction(
+  id: number, 
+  payload: { 
+    nombre: string; 
+    numFactura: string; 
+    tieneConvenio: boolean; 
+    montoRecarga?: number;
+    createdAt?: Date;
+  }
+) {
   try {
     const totalRecarga = payload.tieneConvenio ? (payload.montoRecarga ?? 0) : 0
     
@@ -423,9 +432,11 @@ export async function editarGasolineraAction(id: number, payload: { nombre: stri
         numFactura: payload.numFactura.toUpperCase().trim(), 
         tieneConvenio: payload.tieneConvenio,
         montoRecarga: totalRecarga,
-        montoActual: totalRecarga
+        montoActual: totalRecarga,
+        ...(payload.createdAt && { createdAt: new Date(payload.createdAt) })
       }
     })
+    revalidatePath('/dashboard/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
@@ -435,13 +446,14 @@ export async function editarGasolineraAction(id: number, payload: { nombre: stri
 export async function eliminarGasolineraAction(id: number) {
   try {
     await prisma.gasolinera.delete({ where: { id } })
+    
+    revalidatePath('/dashboard/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
     return { success: false, error: 'No se puede eliminar la estación porque contiene historiales vinculados.' }
   }
 }
 
-// 📝 MODIFICACIÓN Y REVERSIÓN DE SALDOS EN FACTURAS
 export async function editarFacturaCombustibleAction(id: number, data: any) {
   try {
     const facturaVieja = await prisma.registroCombustible.findUnique({ where: { id: Number(id) } });
@@ -527,12 +539,9 @@ export async function eliminarFacturaCombustibleAction(id: number) {
   }
 }
 
-// 🏁 JORNADAS DIARIAS (REGISTRO MATUTINO)
 export async function registrarInicioJornada(data: { userId: number; placaCarro: string; kmInicial: number }) {
   try {
     const placaNormalizada = data.placaCarro.toUpperCase().trim()
-    
-    // Verificamos si ya existe una ruta abierta sin cerrar de este usuario
     const rutaAbierta = await prisma.registroRutaDiaria.findFirst({
       where: {
         userId: data.userId,

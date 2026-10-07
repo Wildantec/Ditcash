@@ -24,13 +24,11 @@ export default async function EstacionesCombustiblePage() {
   const movimientosKardex: any[] = [];
 
   gasolinerasDb.forEach((g: any) => {
-    // 1. MAPEAMOS LAS ACREDITACIONES CON SU MARCA DE TIEMPO REAL
     if (g.tieneConvenio && Number(g.montoRecarga || 0) > 0) {
       movimientosKardex.push({
         id: `ACRED-${g.id}`,
         nombreEstacion: g.nombre ? String(g.nombre).toUpperCase() : 'S/E',
         fecha: g.createdAt ? new Date(g.createdAt).toISOString().split('T')[0] : '',
-        // 🚀 CLAVE: Guardamos el createdAt original con hora y segundos de la base de datos
         createdAt: g.createdAt ? new Date(g.createdAt) : new Date(),
         numFactura: g.numFactura || 'S/N',
         acreditacion: Number(g.montoRecarga || 0),
@@ -38,16 +36,12 @@ export default async function EstacionesCombustiblePage() {
         esConvenio: true
       });
     }
-
-    // 2. MAPEAMOS LOS CONSUMOS CON SU MARCA DE TIEMPO REAL
     const consumos = g.registrosCombustible || [];
     consumos.forEach((c: any) => {
       movimientosKardex.push({
         id: `CONSU-${c.id}`,
         nombreEstacion: g.nombre ? String(g.nombre).toUpperCase() : 'S/E',
-        // Mostramos en la tabla la fecha en la que se facturó
         fecha: c.fechaFactura ? new Date(c.fechaFactura).toISOString().split('T')[0] : '',
-        // 🚀 CLAVE: Usamos el createdAt del registro de consumo para saber exactamente CUÁNDO se insertó físicamente
         createdAt: c.createdAt ? new Date(c.createdAt) : (c.fechaFactura ? new Date(c.fechaFactura) : new Date()),
         numFactura: c.numFactura || 'SECUENCIAL',
         acreditacion: 0,
@@ -57,17 +51,11 @@ export default async function EstacionesCombustiblePage() {
     });
   });
 
-  // 3. 🚀 ORDENAMIENTO DE ENTRADA: Ordenamos estrictamente por fecha de creación (milisegundos reales)
-  // De esta forma, se calculan en el orden real de inserción cronológica
   const kardexOrdenado = movimientosKardex.sort((a, b) => {
     const tiempoA = new Date(a.createdAt).getTime();
     const tiempoB = new Date(b.createdAt).getTime();
     return tiempoA - tiempoB;
   });
-
-  // Nota: Ya no calculamos el saldo acumulado de forma global en la Page del servidor, 
-  // ya que tu componente ModuloEstacionesClient que corregimos anteriormente lo calcula e independiza
-  // de forma perfecta por cada estación de manera interna.
 
   const nombresEstacionesUnicas = Array.from(
     new Set(

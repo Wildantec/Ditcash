@@ -37,6 +37,7 @@ export default function ModuloEstacionesClient({
 
   const [totalRecargado, setTotalRecargado] = useState(0)
   const [totalConsumido, setTotalConsumido] = useState(0)
+  const [saldoRealCalculado, setSaldoRealCalculado] = useState(0)
 
   const procesarSaldosPorEstacion = (movimientos: any[]) => {
     const ordenadosParaCalculo = [...movimientos].sort((a, b) => {
@@ -60,13 +61,21 @@ export default function ModuloEstacionesClient({
       const acred = Number(m.acreditacion || 0);
       const cons = Number(m.consumo || 0);
       const esAcreditacion = m.id && String(m.id).startsWith('ACRED-');
+      const esConvenio = m.esConvenio !== false;
 
-      acumuladores[estacion] += (acred - cons);
+      let saldoFila = 0;
+
+      if (esConvenio) {
+        acumuladores[estacion] += (acred - cons);
+        saldoFila = acumuladores[estacion];
+      } else {
+        saldoFila = cons;
+      }
 
       return {
         ...m,
         acreditacion: esAcreditacion ? acred : saldoInicialDeEstacion,
-        saldo: acumuladores[estacion]
+        saldo: saldoFila
       };
     });
 
@@ -77,7 +86,6 @@ export default function ModuloEstacionesClient({
     const movimientosListos = procesarSaldosPorEstacion(movimientosIniciales);
     setListaMovimientos(movimientosListos);
   }, [movimientosIniciales]);
-
   useEffect(() => {
     let aux = [...listaMovimientos];
 
@@ -88,15 +96,18 @@ export default function ModuloEstacionesClient({
     if (fechaHasta !== '') aux = aux.filter(m => (m.fecha || '') <= fechaHasta);
 
     setMovimientosFiltrados(aux);
-
     const ingresos = aux.reduce((sum, m) => {
       const esRealAcreditacion = m.id && String(m.id).startsWith('ACRED-');
       return sum + (esRealAcreditacion ? Number(m.acreditacion || 0) : 0);
     }, 0);
     const egresos = aux.reduce((sum, m) => sum + Number(m.consumo || 0), 0);
+    const egresosConvenio = aux.reduce((sum, m) => {
+      return sum + (m.esConvenio !== false ? Number(m.consumo || 0) : 0);
+    }, 0);
 
     setTotalRecargado(ingresos);
     setTotalConsumido(egresos);
+    setSaldoRealCalculado(ingresos - egresosConvenio);
   }, [listaMovimientos, filtroEstacion, fechaDesde, fechaHasta]);
 
   const handleLimpiarFiltros = () => {
@@ -212,13 +223,15 @@ export default function ModuloEstacionesClient({
         return
       }
     }
+    const [year, month, day] = fechaAcreditacion.split('-').map(Number);
+    const fechaLocal = new Date(year, month - 1, day, 12, 0, 0);
 
     const payload = { 
       nombre: nombre.trim().toUpperCase(), 
       numFactura: comprobanteIngresado, 
       tieneConvenio: true, 
       montoRecarga: parseMonto,
-      createdAt: new Date(fechaAcreditacion) 
+      createdAt: fechaLocal 
     }
     
     const res = isEdicion && movimientoSeleccionadoId
@@ -248,6 +261,7 @@ export default function ModuloEstacionesClient({
         </button>
       </header>
 
+      {/* KPIS DE RESUMEN */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
@@ -256,6 +270,7 @@ export default function ModuloEstacionesClient({
           </div>
           <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center"><Wallet size={20} /></div>
         </div>
+
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Consumido {filtroEstacion ? `(${filtroEstacion})` : '(General)'}</p>
@@ -263,16 +278,19 @@ export default function ModuloEstacionesClient({
           </div>
           <div className="w-10 h-10 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center"><ArrowUpRight size={20} /></div>
         </div>
+
         <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
           <div>
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Saldo Real Total {filtroEstacion ? `(${filtroEstacion})` : '(General)'}</p>
-            <p className={`text-xl font-mono font-black ${(totalRecargado - totalConsumido) <= 0 ? 'text-red-500' : 'text-[#001F3F]'}`}>${(totalRecargado - totalConsumido).toFixed(2)}</p>
+            <p className={`text-xl font-mono font-black ${saldoRealCalculado < 0 ? 'text-red-500' : 'text-[#001F3F]'}`}>
+              ${saldoRealCalculado.toFixed(2)}
+            </p>
           </div>
           <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-xl flex items-center justify-center"><Fuel size={20} /></div>
         </div>
       </div>
 
-      {/* COMPONENTE DE FILTRADO AUTOMÁTICO EN TIEMPO REAL */}
+      {/* FILTROS */}
       <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row items-end gap-3 shadow-inner w-full">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 w-full">
           <div className="flex flex-col gap-1 w-full">
@@ -299,9 +317,10 @@ export default function ModuloEstacionesClient({
         </div>
       </div>
 
+      {/* TABLA KARDEX */}
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full">
-        <div className="w-full">
-          <table className="w-full text-left border-collapse text-xs table-fixed">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs table-fixed min-w-[800px]">
             <thead>
               <tr className="bg-[#001F3F] text-white font-black text-[10px] uppercase tracking-widest border-b border-slate-700">
                 <th className="p-4 pl-6 w-[12%]">Fecha</th>
@@ -342,7 +361,9 @@ export default function ModuloEstacionesClient({
                       <td className="p-4 text-right font-mono font-black text-rose-500 text-[13px] pr-2">
                         {valConsumo > 0 ? `$${valConsumo.toFixed(2)}` : '$0.00'}
                       </td>
-                      <td className="p-4 text-right font-mono font-black text-[#001F3F] text-[13px] pr-4 bg-slate-50/50">${valSaldo.toFixed(2)}</td>
+                      <td className="p-4 text-right font-mono font-black text-[#001F3F] text-[13px] pr-4 bg-slate-50/50">
+                        ${valSaldo.toFixed(2)}
+                      </td>
                       <td className="p-4 text-center pr-6">
                         {esAcreditacion ? (
                           <div className="flex items-center justify-center gap-1.5 w-full">
