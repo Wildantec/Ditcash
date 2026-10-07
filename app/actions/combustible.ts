@@ -19,7 +19,6 @@ export async function registrarCierreRutaDiario(data: {
       return { success: false, error: 'El vehículo con esa placa no está registrado en Ditcash.' }
     }
 
-  
     const rutaActiva = await prisma.registroRutaDiaria.findFirst({
       where: {
         userId: data.userId,
@@ -39,7 +38,6 @@ export async function registrarCierreRutaDiario(data: {
     const dispararAlerta = kmDesdeUltimoAceite >= vehiculo.intervaloAlerta
 
     await prisma.$transaction([
-
       prisma.registroRutaDiaria.update({
         where: { id: rutaActiva.id },
         data: {
@@ -106,10 +104,7 @@ export async function registrarFacturaCombustible(data: {
         gasolineraExterna = await prisma.gasolinera.create({
           data: {
             nombre: nombreEstacion,
-            numFactura: 'F-EXTERNA',
-            tieneConvenio: false,
-            montoRecarga: 0,
-            montoActual: 0
+            tieneConvenio: false
           }
         });
       }
@@ -128,6 +123,7 @@ export async function registrarFacturaCombustible(data: {
         return { success: false, error: `Transacción denegada. El saldo disponible de la estación ${gasolineraReferencia.nombre} ($${saldoConsolidado.toFixed(2)}) es insuficiente.` };
       }
     }
+
     let numeracionFinal = data.numFactura.trim().toUpperCase();
     if (!numeracionFinal) {
       const prefijo = fueraDeConvenio ? 'EXT' : 'CONV';
@@ -186,11 +182,13 @@ export async function registrarFacturaCombustible(data: {
     }
 
     revalidatePath('/dashboard/combustible/facturas');
+    revalidatePath('/dashboard/combustible/estaciones');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
+
 export async function crearVehiculoAction(data: { 
   placa: string; 
   marcaModelo: string; 
@@ -446,7 +444,6 @@ export async function editarGasolineraAction(
 export async function eliminarGasolineraAction(id: number) {
   try {
     await prisma.gasolinera.delete({ where: { id } })
-    
     revalidatePath('/dashboard/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
@@ -473,7 +470,7 @@ export async function editarFacturaCombustibleAction(id: number, data: any) {
       let gasolineraExterna = await prisma.gasolinera.findFirst({ where: { nombre: nombreEstacion } });
       if (!gasolineraExterna) {
         gasolineraExterna = await prisma.gasolinera.create({
-          data: { nombre: nombreEstacion, numFactura: 'F-EXTERNA', tieneConvenio: false }
+          data: { nombre: nombreEstacion, tieneConvenio: false }
         });
       }
       finalGasolineraId = gasolineraExterna.id;
@@ -515,6 +512,7 @@ export async function editarFacturaCombustibleAction(id: number, data: any) {
     }
 
     revalidatePath('/dashboard/combustible/facturas');
+    revalidatePath('/dashboard/combustible/estaciones');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -533,6 +531,7 @@ export async function eliminarFacturaCombustibleAction(id: number) {
 
     await prisma.registroCombustible.delete({ where: { id: Number(id) } })
     revalidatePath('/dashboard/combustible/facturas')
+    revalidatePath('/dashboard/combustible/estaciones')
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
