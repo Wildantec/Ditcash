@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { crearGasolineraAction, editarGasolineraAction, eliminarGasolineraAction } from '@/app/actions/combustible'
-import { Fuel, Plus, X, Loader2, DollarSign, Wallet, ArrowUpRight, Calendar, Edit2, Trash2, Download } from 'lucide-react'
+import { Fuel, Plus, X, Loader2, DollarSign, Wallet, ArrowUpRight, Edit2, Trash2, Download } from 'lucide-react'
 import Swal from 'sweetalert2'
 import { exportarKardexEstacionesExcel } from '@/app/actions/reportes-estaciones'
 
 interface ModuloEstacionesProps {
   movimientosIniciales: any[]
   nombresEstaciones: string[]
-  estacionesSoloConvenio?: string[] 
+  estacionesSoloConvenio?: string[]
 }
 
 export default function ModuloEstacionesClient({ 
@@ -39,7 +39,7 @@ export default function ModuloEstacionesClient({
   const [totalConsumido, setTotalConsumido] = useState(0)
   const [saldoRealCalculado, setSaldoRealCalculado] = useState(0)
 
-  const procesarSaldosPorEstacion = (movimientos: any[]) => {
+  const procesarSaldosPorEstacion = useCallback((movimientos: any[]) => {
     const ordenadosParaCalculo = [...movimientos].sort((a, b) => {
       const tiempoA = a.createdAt ? new Date(a.createdAt).getTime() : new Date(a.fecha).getTime();
       const tiempoB = b.createdAt ? new Date(b.createdAt).getTime() : new Date(b.fecha).getTime();
@@ -80,12 +80,13 @@ export default function ModuloEstacionesClient({
     });
 
     return conSaldosCalculados.reverse();
-  };
+  }, []);
 
   useEffect(() => {
     const movimientosListos = procesarSaldosPorEstacion(movimientosIniciales);
     setListaMovimientos(movimientosListos);
-  }, [movimientosIniciales]);
+  }, [movimientosIniciales, procesarSaldosPorEstacion]);
+
   useEffect(() => {
     let aux = [...listaMovimientos];
 
@@ -145,7 +146,7 @@ export default function ModuloEstacionesClient({
       } else {
         Swal.fire('Error', res.error || 'No se pudo generar el Kardex.', 'error');
       }
-    } catch (err) {
+    } catch {
       Swal.close();
       Swal.fire('Error', 'Fallo al exportar el archivo Excel.', 'error');
     }

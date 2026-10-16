@@ -200,7 +200,6 @@ export default function BotonImprimir({ clienteNombre, clienteCedula, movimiento
     doc.setFontSize(12);
     doc.text('ESTADO DE CUENTA', 105, 48, { align: 'center' });
 
-
     doc.setDrawColor(180, 180, 180);
     doc.setLineWidth(0.25);
     doc.roundedRect(12, 54, 186, 36, 2, 2, 'S');
@@ -299,7 +298,7 @@ export default function BotonImprimir({ clienteNombre, clienteCedula, movimiento
 
       const catRealItem = 
         detalleFacturaReal?.client?.group?.name || 
-        detalleFacturaReal?.category?.name;
+        detalleFacturaReal?.category?.name || "GENERAL";
       
       const bancoRealObj = detalleFacturaReal?.client_bank_account || item.client_bank_account;
       let textoBanco = "";

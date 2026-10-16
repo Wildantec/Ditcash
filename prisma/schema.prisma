@@ -15,6 +15,8 @@ model User {
   password  String
   nombre    String?
   rol       String   @default("VENDEDOR") 
+  roleId    Int?
+  role      Role?    @relation(fields: [roleId], references: [id])
   estado    String   @default("Activo")
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -230,4 +232,16 @@ model KardexVehiculo {
   observaciones      String?  @db.Text
 
   @@map("kardex_vehiculos")
+}
+model Role {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String?
+  permisos    Json     
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  usuarios    User[]
+
+  @@map("roles")
 }

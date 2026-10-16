@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
 import crypto from 'crypto'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -13,8 +14,35 @@ cloudinary.config({
   secure: true
 });
 
+async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
+  try {
+    const cookieStore = await cookies()
+    const userId = cookieStore.get('user_id')?.value
+    if (!userId) return false
+
+    const usuario = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: { role: true }
+    })
+
+    if (!usuario) return false
+
+    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
+    const rolNombre = usuario.role?.nombre || usuario.rol
+
+    return tienePermiso(permisos, rolNombre, moduloId, accion)
+  } catch (error) {
+    return false
+  }
+}
+
 export async function registrarEvidenciaAction(formData: FormData, campanaId: string) {
   try {
+    const autorizado = await validarAccionSesion('canjes', 'crear')
+    if (!autorizado) {
+      return { error: "Acceso Denegado: Tu rol no tiene permisos para REGISTRAR evidencias o canjes." }
+    }
+
     const file = formData.get('foto') as File
     const clienteNombre = formData.get('cliente_nombre') as string
     
@@ -44,6 +72,7 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     if (duplicado) {
       return { error: "ESTA IMAGEN YA FUE SUBIDA: Por favor toma una foto nueva de la gestión." }
     }
+
     const uploadResponse: any = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { 
@@ -59,6 +88,7 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
       )
       uploadStream.end(buffer)
     })
+
     await prisma.evidencia.create({
       data: {
         clienteNombre,
@@ -68,7 +98,7 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
         campanaId: parseInt(campanaId),
         estado: 'pendiente',
         imageHash: hash,
-        valorPagado: campana.valor 
+        valorPagado: (campana as any).valor || 0
       }
     })
 
@@ -79,8 +109,14 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     return { error: "Error de conexión: La imagen es muy pesada o el internet es inestable." }
   }
 }
+
 export async function revisarEvidenciaAction(id: number, aprobado: boolean, motivo?: string) {
   try {
+    const autorizado = await validarAccionSesion('canjes', 'editar')
+    if (!autorizado) {
+      return { error: "Acceso Denegado: Tu rol no tiene permisos para REVISAR evidencias." }
+    }
+
     const evidencia = await prisma.evidencia.findUnique({
       where: { id },
       include: { vendedor: true }
@@ -102,16 +138,23 @@ export async function revisarEvidenciaAction(id: number, aprobado: boolean, moti
         data: { estado: 'rechazado', motivoRechazo: motivo || "No cumple requisitos" }
       })
     }
+
     revalidatePath('/dashboard')
     revalidatePath('/dashboard/vendedores')
     revalidatePath('/dashboard/campanas')
+    revalidatePath('/dashboard/canjes')
     return { success: true }
   } catch (error) {
     return { error: "Error en la revisión" }
   }
 }
+
+// 🛡️ Historial de Vendedor (Requiere permiso 'ver' en módulo 'historial' o 'canjes')
 export async function getHistorialVendedor() {
   try {
+    const autorizado = await validarAccionSesion('canjes', 'ver') || await validarAccionSesion('historial', 'ver')
+    if (!autorizado) return { campanas: [], saldoDisponible: 0 }
+
     const cookieStore = await cookies()
     const userId = cookieStore.get('user_id')?.value
     if (!userId) return { campanas: [], saldoDisponible: 0 }
@@ -143,7 +186,7 @@ export async function getHistorialVendedor() {
         nombre: c.nombre,
         fecha_inicio: c.fechaInicio.toLocaleDateString(),
         fecha_cierre: c.fechaFin.toLocaleDateString(),
-        estado: c.activa ? 'Activa' : 'Finalizada',
+        estado: (c as any).activa ? 'Activa' : 'Finalizada',
         total_acumulado: total,
         puesto: total > 0 ? "Registrado" : "Sin actividad"
       }
@@ -160,9 +203,14 @@ export async function getHistorialVendedor() {
 
 export async function getMisEvidencias(campanaId: number) {
   try {
+    const autorizado = await validarAccionSesion('canjes', 'ver')
+    if (!autorizado) return []
+
     const cookieStore = await cookies()
     const userId = cookieStore.get('user_id')?.value
-    const vendedor = await prisma.vendedor.findUnique({ where: { usuarioId: parseInt(userId!) } })
+    if (!userId) return []
+
+    const vendedor = await prisma.vendedor.findUnique({ where: { usuarioId: parseInt(userId) } })
     if (!vendedor) return []
 
     const data = await prisma.evidencia.findMany({
@@ -170,22 +218,25 @@ export async function getMisEvidencias(campanaId: number) {
       orderBy: { createdAt: 'desc' }
     })
 
-    return data.map((e:any) => ({
+    return data.map((e: any) => ({
       ...e,
       valorPagado: Number(e.valorPagado),
       createdAt: e.createdAt.toISOString()
     }))
   } catch (error) { return [] }
 }
-
 export async function getEvidenciasByVendedor(vendedorId: number) {
   try {
+    const autorizado = await validarAccionSesion('canjes', 'ver') || await validarAccionSesion('vendedores', 'ver')
+    if (!autorizado) return []
+
     const data = await prisma.evidencia.findMany({
       where: { vendedorId: parseInt(vendedorId.toString()) },
       include: { campana: { select: { nombre: true } } },
       orderBy: { createdAt: 'desc' }
     })
-    return data.map((e:any) => ({
+
+    return data.map((e: any) => ({
       ...e,
       valorPagado: Number(e.valorPagado),
       createdAt: e.createdAt.toISOString()
@@ -195,8 +246,14 @@ export async function getEvidenciasByVendedor(vendedorId: number) {
 
 export async function eliminarEvidenciaAction(id: number) {
   try {
+    const autorizado = await validarAccionSesion('canjes', 'eliminar')
+    if (!autorizado) {
+      return { error: "Acceso Denegado: Tu rol no tiene permisos para ELIMINAR evidencias." }
+    }
+
     await prisma.evidencia.delete({ where: { id } })
     revalidatePath('/dashboard/admin/vendedores')
+    revalidatePath('/dashboard/canjes')
     return { success: true }
   } catch (error) { return { error: "Error al eliminar" } }
 }

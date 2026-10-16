@@ -1,33 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useTransition } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { 
-  ShieldCheck, Save, Loader2, Users, Briefcase, 
-  Gift, ChevronDown, FileText, Wrench, Search, Settings, 
-  FileSpreadsheet as GasIcon, Wallet, FileSpreadsheet
+  ShieldCheck, Save, Loader2, Plus, Settings, Pencil, Trash2, X, ChevronDown, 
+  Search, Gift, Wrench, FileSpreadsheet as GasIcon, FileText, Users
 } from 'lucide-react';
 import Swal from 'sweetalert2';
-
-const ROLES_DISPONIBLES = [
-  { value: 'ADMIN', label: 'ADMINISTRADOR', icon: ShieldCheck },
-  { value: 'MARKETING', label: 'MARKETING', icon: Users },
-  { value: 'VENDEDOR', label: 'VENDEDOR', icon: Briefcase },
-  { value: 'CONTABILIDAD', label: 'CONTABILIDAD', icon: FileSpreadsheet },
-  { value: 'COBRANZAS', label: 'COBRANZAS', icon: Wallet },
-  { value: 'FACTURACION', label: 'FACTURACIÓN', icon: FileText },
-  { value: 'SERVICIO_TECNICO', label: 'SERVICIO TÉCNICO', icon: Wrench }
-];
-
-// 🟢 MAPEO CORPORATIVO: Accesos de lectura base asignados automáticamente por rol
-const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
-  VENDEDOR: ['campanas', 'premios', 'inventario'],
-  MARKETING: ['vendedores', 'campanas', 'canjes', 'historial', 'premios', 'inventario'],
-  CONTABILIDAD: ['estaciones', 'facturas_comb', 'vehiculos'],
-  SERVICIO_TECNICO: ['vehiculos', 'estaciones'],
-  COBRANZAS: [],
-  FACTURACION: [],
-  ADMIN: [] // El Administrador maneja una cláusula de omisión total para control total
-};
+import { obtenerRolesAction, guardarRolAction, eliminarRolAction, PermisoModulo } from '@/app/actions/roles';
+import CrearRolForm from '@/components/admin/CrearRolForm';
 
 const ESTRUCTURA_PERMISOS = [
   {
@@ -85,316 +65,498 @@ const ESTRUCTURA_PERMISOS = [
     icon: Settings,
     submodulos: [
       { id: 'usuarios', label: 'Gestión Usuarios' }
-      // 🟢 Eliminado Banners Publicidad con éxito
     ]
   }
 ];
 
-interface PermisoMatriz {
-  rol: string;
-  modulo: string;
-  ver: boolean;
-  crear: boolean;
-  editar: boolean;
-  eliminar: boolean;
-}
-
 export default function ModuloPermisosAdmin() {
-  const [rolSeleccionado, setRolSeleccionado] = useState('VENDEDOR');
-  const [matrizPermisos, setMatrizPermisos] = useState<PermisoMatriz[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
-  const [seccionesAbiertas, setSeccionesAbiertas] = useState<{ [key: string]: boolean }>({
-    operaciones: true,
-    incentivos: true,
-    contabilidad_modulo: true
-  });
+
+  // Modales
+  const [isModalCrearOpen, setIsModalCrearOpen] = useState(false);
+  const [isModalPermisosOpen, setIsModalPermisosOpen] = useState(false);
+  const [isModalEditarNombreOpen, setIsModalEditarNombreOpen] = useState(false);
   
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  // Estado para rol a editar
+  const [rolEditar, setRolEditar] = useState<any | null>(null);
+  const [nombreEditar, setNombreEditar] = useState('');
+  const [descEditar, setDescEditar] = useState('');
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const [matrizPermisos, setMatrizPermisos] = useState<PermisoModulo[]>([]);
+  
+  const [seccionAbierta, setSeccionAbierta] = useState<string | null>(null);
 
-  async function cargarPermisosDelServidor() {
+  async function cargarRoles() {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/permisos');
-      const json = await res.json();
-      if (json.success && json.data) setMatrizPermisos(json.data);
+      const res = await obtenerRolesAction();
+      if (res.success && res.roles) {
+        setRoles(res.roles);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Error cargando roles desde la BD:', err);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    cargarPermisosDelServidor();
-  }, [rolSeleccionado]);
+    cargarRoles();
+  }, []);
 
-  const toggleSeccion = (id: string) => {
-    setSeccionesAbiertas(prev => ({ ...prev, [id]: !prev[id] }));
+  const abrirModalPermisos = (rol: any) => {
+    setRolEditar(rol);
+    const permisosExistentes = (rol.permisos as PermisoModulo[]) || [];
+    setMatrizPermisos(permisosExistentes);
+    setSeccionAbierta(null);
+    setIsModalPermisosOpen(true);
   };
 
-  const esModuloObligatorioPorRol = (submoduloId: string) => {
-    if (rolSeleccionado === 'ADMIN') return true;
-    const modulosFijos = MODULOS_POR_DEFECTO[rolSeleccionado] || [];
-    return modulosFijos.includes(submoduloId);
+  const abrirModalEditarDatos = (rol: any) => {
+    setRolEditar(rol);
+    setNombreEditar(rol.nombre);
+    setDescEditar(rol.descripcion || '');
+    setIsModalEditarNombreOpen(true);
   };
 
-  const buscarPermiso = (submoduloId: string) => {
-    const permisoExistente = matrizPermisos.find(p => p.rol === rolSeleccionado && p.modulo === submoduloId);
-    const tieneVerPorDefecto = esModuloObligatorioPorRol(submoduloId);
+  // Alterna módulos cerrando automáticamente los demás
+  const toggleSeccionExclusiva = (id: string) => {
+    setSeccionAbierta(prev => (prev === id ? null : id));
+  };
 
-    if (permisoExistente) {
-      if (tieneVerPorDefecto) {
-        permisoExistente.ver = true;
-      }
-      return permisoExistente;
-    }
+  const buscarPermiso = (submoduloId: string): PermisoModulo => {
+    const permisoExistente = matrizPermisos.find(p => p.modulo === submoduloId);
+    if (permisoExistente) return permisoExistente;
 
+    const isAdmin = rolEditar?.nombre === 'ADMIN';
     return {
-      rol: rolSeleccionado, 
-      modulo: submoduloId, 
-      ver: tieneVerPorDefecto, 
-      crear: false, 
-      editar: false, 
-      eliminar: false
+      modulo: submoduloId,
+      ver: isAdmin,
+      crear: isAdmin,
+      editar: isAdmin,
+      eliminar: isAdmin
     };
   };
 
   const handleSwitchChange = (submoduloId: string, campo: 'ver' | 'crear' | 'editar' | 'eliminar') => {
-    if (rolSeleccionado === 'ADMIN') return; // El administrador no se puede editar, goza de control total absoluto
+    if (rolEditar?.nombre === 'ADMIN') return;
 
     const registroActual = buscarPermiso(submoduloId);
-    let nuevoValor = !registroActual[campo];
-    
+    const nuevoValor = !registroActual[campo];
     const registroActualizado = { ...registroActual, [campo]: nuevoValor };
-    
-    // Si se apaga visualizar, se caen los privilegios de acción en cascada
+
     if (campo === 'ver' && !nuevoValor) {
-      if (esModuloObligatorioPorRol(submoduloId)) return; // Evita apagar vistas obligatorias
       registroActualizado.crear = false;
       registroActualizado.editar = false;
       registroActualizado.eliminar = false;
     }
-    
-    // Si se enciende cualquier acción (crear, editar, eliminar), se activa "ver" automáticamente
+
     if ((campo === 'crear' || campo === 'editar' || campo === 'eliminar') && nuevoValor) {
       registroActualizado.ver = true;
     }
 
     setMatrizPermisos(prev => {
-      const filtrados = prev.filter(p => !(p.rol === rolSeleccionado && p.modulo === submoduloId));
+      const filtrados = prev.filter(p => p.modulo !== submoduloId);
       return [...filtrados, registroActualizado];
     });
   };
 
-  const guardarCambiosMatriz = () => {
+  const guardarMatrizModal = () => {
+    if (!rolEditar) return;
+
     startTransition(async () => {
       try {
-        const payloadEnvio: PermisoMatriz[] = [];
+        const payloadPermisos: PermisoModulo[] = [];
         for (const seccion of ESTRUCTURA_PERMISOS) {
           for (const sub of seccion.submodulos) {
-            const permisoFinal = buscarPermiso(sub.id);
-            if (esModuloObligatorioPorRol(sub.id) || rolSeleccionado === 'ADMIN') {
-              permisoFinal.ver = true;
-            }
-            payloadEnvio.push(permisoFinal);
+            payloadPermisos.push(buscarPermiso(sub.id));
           }
         }
 
-        const res = await fetch('/api/admin/permisos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rol: rolSeleccionado, permisos: payloadEnvio })
+        const res = await guardarRolAction({
+          id: rolEditar.id,
+          nombre: rolEditar.nombre,
+          descripcion: rolEditar.descripcion,
+          permisos: payloadPermisos
         });
-        const json = await res.json();
-        if (json.success) {
-          await cargarPermisosDelServidor();
-          Swal.fire({ 
-            title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">¡SEGURIDAD ACTUALIZADA!</span>', 
-            text: `Estructura de accesos guardada para el rol seleccionado.`, 
-            icon: 'success', 
-            confirmButtonColor: '#001F3F' 
+
+        if (res.success) {
+          await cargarRoles();
+          setIsModalPermisosOpen(false);
+          setRolEditar(null);
+          Swal.fire({
+            title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">¡PERMISOS ACTUALIZADOS!</span>',
+            text: `Se guardaron los accesos para el rol ${rolEditar.nombre}.`,
+            icon: 'success',
+            confirmButtonColor: '#001F3F'
           });
+        } else {
+          Swal.fire('Error', res.error || 'No se pudieron guardar los permisos', 'error');
         }
-      } catch (err) {
-        Swal.fire('Error', 'No se pudo guardar la configuración.', 'error');
+      } catch (err: any) {
+        Swal.fire('Error', err.message || 'Error en el servidor', 'error');
       }
     });
   };
 
-  const currentRolObj = ROLES_DISPONIBLES.find(r => r.value === rolSeleccionado) || ROLES_DISPONIBLES[2];
+  const guardarEdicionNombre = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rolEditar) return;
+
+    const res = await guardarRolAction({
+      id: rolEditar.id,
+      nombre: nombreEditar,
+      descripcion: descEditar,
+      permisos: rolEditar.permisos || []
+    });
+
+    if (res.success) {
+      await cargarRoles();
+      setIsModalEditarNombreOpen(false);
+      setRolEditar(null);
+      Swal.fire('¡Actualizado!', 'El rol ha sido modificado correctamente.', 'success');
+    } else {
+      Swal.fire('Error', res.error || 'No se pudo actualizar el rol.', 'error');
+    }
+  };
+
+  const handleEliminarRol = async (id: number, nombre: string) => {
+    const { isConfirmed } = await Swal.fire({
+      title: `<span style="font-size:18px; font-weight:bold;">¿ELIMINAR ROL "${nombre}"?</span>`,
+      text: 'No podrás deshacer esta acción.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#001F3F',
+      confirmButtonText: 'SÍ, ELIMINAR',
+      cancelButtonText: 'CANCELAR'
+    });
+
+    if (isConfirmed) {
+      const res = await eliminarRolAction(id);
+      if (res.success) {
+        Swal.fire('Rol Eliminado', '', 'success');
+        cargarRoles();
+      } else {
+        Swal.fire('Atención', res.error || 'No se pudo eliminar el rol', 'warning');
+      }
+    }
+  };
 
   return (
     <div className="p-6 md:p-12 bg-[#F8FAFC] min-h-screen text-[#001F3F]">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 pb-4 border-b border-slate-200 gap-4">
         <div>
           <h1 className="text-2xl font-black uppercase italic tracking-tighter flex items-center gap-3">
-            <ShieldCheck className="text-[#FFB800]" size={28} strokeWidth={2.5} /> Matriz de Privilegios
+            <ShieldCheck className="text-[#FFB800]" size={28} strokeWidth={2.5} /> Control de Roles y Permisos
           </h1>
-          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">Gestión avanzada de accesos por módulos y submódulos</p>
+          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-1">
+            Lista de roles dinámicos gestionados en Base de Datos
+          </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto" ref={dropdownRef}>
-          <div className="relative w-56">
-            <button
-              type="button"
-              onClick={() => setIsOpen(!isOpen)}
-              className="w-full p-3.5 bg-white border border-slate-200 rounded-2xl font-black text-xs text-[#001F3F] transition-all shadow-sm flex items-center justify-between hover:bg-slate-50"
-            >
-              <div className="flex items-center gap-2">
-                <currentRolObj.icon size={14} className="text-[#FFB800]" />
-                <span>{currentRolObj.label}</span>
-              </div>
-              <ChevronDown size={14} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isOpen && (
-              <div className="absolute right-0 left-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 overflow-hidden max-h-64 overflow-y-auto">
-                {ROLES_DISPONIBLES.map((rol) => {
-                  const Icon = rol.icon;
-                  return (
-                    <button
-                      key={rol.value}
-                      type="button"
-                      onClick={() => {
-                        setRolSeleccionado(rol.value);
-                        setIsOpen(false);
-                      }}
-                      className={`w-full px-4 py-3 text-left font-black text-xs transition-colors flex items-center gap-2 ${
-                        rolSeleccionado === rol.value 
-                          ? 'bg-[#001F3F] text-[#FFB800]' 
-                          : 'text-[#001F3F] hover:bg-slate-50'
-                      }`}
-                    >
-                      <Icon size={13} className={rolSeleccionado === rol.value ? 'text-[#FFB800]' : 'text-slate-400'} />
-                      <span>{rol.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <button 
-            onClick={guardarCambiosMatriz} 
-            disabled={isPending || loading || rolSeleccionado === 'ADMIN'} 
-            className="bg-[#001F3F] text-[#FFB800] border border-[#001F3F] text-[10px] font-black px-6 py-4 rounded-2xl uppercase flex items-center gap-2 shadow-md hover:bg-black hover:text-[#FFB800] transition-all duration-300 h-[48px] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isPending ? <Loader2 size={13} className="animate-spin" strokeWidth={2.5} /> : <Save size={13} />}
-            <span>Guardar Ajustes</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setIsModalCrearOpen(true)}
+          className="bg-[#001F3F] text-[#FFB800] hover:bg-black transition-all font-black text-[10px] uppercase tracking-widest px-6 py-4 rounded-2xl flex items-center gap-2 shadow-lg"
+        >
+          <Plus size={15} strokeWidth={3} />
+          <span>Crear Nuevo Rol</span>
+        </button>
       </header>
-      
-      <div className="space-y-4">
-        {loading ? (
-          <div className="bg-white p-12 rounded-[2.5rem] text-center text-slate-400 font-bold text-[10px] uppercase tracking-widest animate-pulse border">
-            Sincronizando módulos del sistema...
+
+      {/* Tabla de Roles Dinámicos */}
+      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden mb-8">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-[#001F3F] text-[#FFB800]">
+                <th className="px-10 py-6 text-[10px] font-bold uppercase tracking-[0.25em]">Rol</th>
+                <th className="px-8 py-6 text-[10px] font-bold uppercase tracking-[0.25em]">Descripción</th>
+                <th className="px-8 py-6 text-[10px] font-bold uppercase tracking-[0.25em] text-center">Usuarios</th>
+                <th className="px-10 py-6 text-[10px] font-bold uppercase tracking-[0.25em] text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="p-10 text-center text-slate-400 font-bold text-[10px] uppercase tracking-widest animate-pulse">
+                    Cargando roles desde la BD...
+                  </td>
+                </tr>
+              ) : (
+                roles.map((rol: any) => (
+                  <tr key={rol.id} className="group hover:bg-slate-50 transition-colors">
+                    <td className="px-10 py-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-slate-100 rounded-xl text-[#001F3F] group-hover:bg-[#FFB800] transition-colors">
+                          <ShieldCheck size={18} strokeWidth={2.5} />
+                        </div>
+                        <span className="font-black text-sm uppercase tracking-tight text-[#001F3F]">
+                          {rol.nombre}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <p className="text-xs text-slate-500 font-medium">
+                        {rol.descripcion || 'Sin descripción asignada.'}
+                      </p>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-[#001F3F] rounded-full text-xs font-black">
+                        <Users size={12} />
+                        {rol._count?.usuarios || 0}
+                      </span>
+                    </td>
+                    <td className="px-10 py-6 text-right">
+                      <div className="flex justify-end items-center gap-2">
+                        <button
+                          onClick={() => abrirModalEditarDatos(rol)}
+                          className="p-2.5 text-slate-400 hover:text-[#001F3F] hover:bg-slate-100 rounded-xl transition-all"
+                          title="Editar Datos del Rol"
+                        >
+                          <Pencil size={17} strokeWidth={2.2} />
+                        </button>
+
+                        <button
+                          onClick={() => abrirModalPermisos(rol)}
+                          className="p-2.5 text-[#001F3F] hover:text-[#FFB800] hover:bg-slate-100 rounded-xl transition-all"
+                          title="Configurar Permisos del Rol"
+                        >
+                          <Settings size={18} strokeWidth={2.2} />
+                        </button>
+
+                        {rol.nombre !== 'ADMIN' && (
+                          <button
+                            onClick={() => handleEliminarRol(rol.id, rol.nombre)}
+                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Eliminar Rol"
+                          >
+                            <Trash2 size={18} strokeWidth={2.2} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {!loading && roles.length === 0 && (
+          <div className="p-16 text-center bg-slate-50">
+            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest italic">
+              No existen roles registrados en la base de datos.
+            </p>
           </div>
-        ) : (
-          ESTRUCTURA_PERMISOS.map((seccion) => {
-            const isAbierto = !!seccionesAbiertas[seccion.id];
-
-            return (
-              <div key={seccion.id} className="bg-white border border-slate-200/80 rounded-[2rem] shadow-sm overflow-hidden transition-all">
-                <button 
-                  onClick={() => toggleSeccion(seccion.id)}
-                  className="w-full bg-slate-50/50 px-8 py-5 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white shadow-sm rounded-xl border border-slate-100 text-[#001F3F]">
-                      <seccion.icon size={16} strokeWidth={2.5} />
-                    </div>
-                    <span className="font-black text-xs uppercase tracking-widest text-[#001F3F]">{seccion.label}</span>
-                  </div>
-                  <ChevronDown size={16} className={`text-slate-400 transition-transform duration-300 ${isAbierto ? 'rotate-180' : ''}`} />
-                </button>
-                {isAbierto && (
-                  <div className="overflow-x-auto border-t border-slate-100">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
-                          {/* 🟢 CORRECCIÓN: Título limpio solicitado */}
-                          <th className="px-12 py-4 text-[9px] font-black uppercase tracking-widest w-1/2">SUBMÓDULOS</th>
-                          <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-center">Visualizar</th>
-                          <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-center">Crear</th>
-                          <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-center">Editar</th>
-                          <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-center">Eliminar</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50">
-                        {seccion.submodulos.map((sub) => {
-                          const perm = buscarPermiso(sub.id);
-                          const esFijo = esModuloObligatorioPorRol(sub.id);
-                          const isAdmin = rolSeleccionado === 'ADMIN';
-
-                          return (
-                            <tr key={sub.id} className="hover:bg-blue-50/10 transition-colors">
-                              <td className="px-12 py-4.5 flex items-center gap-2.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-[#FFB800]" />
-                                <span className="font-bold text-xs text-slate-700 uppercase tracking-tight">
-                                  {sub.label}
-                                </span>
-                              </td>
-                              <td className="text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={perm.ver}
-                                  disabled={esFijo || isAdmin}
-                                  onChange={() => handleSwitchChange(sub.id, 'ver')} 
-                                  className={`w-4 h-4 rounded ${isAdmin || esFijo ? 'cursor-not-allowed opacity-60 accent-amber-500' : 'cursor-pointer accent-[#001F3F]'}`} 
-                                />
-                              </td>
-                              <td className="text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={isAdmin ? true : perm.crear} 
-                                  disabled={isAdmin}
-                                  onChange={() => handleSwitchChange(sub.id, 'crear')} 
-                                  className={`w-4 h-4 rounded ${isAdmin ? 'cursor-not-allowed opacity-60 accent-amber-500' : 'cursor-pointer accent-[#001F3F]'}`} 
-                                />
-                              </td>
-                              <td className="text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={isAdmin ? true : perm.editar} 
-                                  disabled={isAdmin}
-                                  onChange={() => handleSwitchChange(sub.id, 'editar')} 
-                                  className={`w-4 h-4 rounded ${isAdmin ? 'cursor-not-allowed opacity-60 accent-amber-500' : 'cursor-pointer accent-[#001F3F]'}`} 
-                                />
-                              </td>
-                              <td className="text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={isAdmin ? true : perm.eliminar} 
-                                  disabled={isAdmin}
-                                  onChange={() => handleSwitchChange(sub.id, 'eliminar')} 
-                                  className={`w-4 h-4 rounded ${isAdmin ? 'cursor-not-allowed opacity-60 accent-amber-500' : 'cursor-pointer accent-[#001F3F]'}`} 
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            );
-          })
         )}
       </div>
+
+      {/* Modal 1: Crear Nuevo Rol */}
+      {isModalCrearOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white w-full max-w-[550px] rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => setIsModalCrearOpen(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"
+            >
+              <X size={20} strokeWidth={2.5} />
+            </button>
+            <CrearRolForm
+              onSuccess={() => {
+                cargarRoles();
+                setIsModalCrearOpen(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: Editar Datos del Rol */}
+      {isModalEditarNombreOpen && rolEditar && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white w-full max-w-[480px] rounded-[2.5rem] p-8 shadow-2xl border border-slate-100 relative">
+            <button
+              onClick={() => {
+                setIsModalEditarNombreOpen(false);
+                setRolEditar(null);
+              }}
+              className="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"
+            >
+              <X size={20} strokeWidth={2.5} />
+            </button>
+
+            <form onSubmit={guardarEdicionNombre} className="space-y-4">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <Pencil className="text-[#FFB800]" size={20} />
+                <h2 className="text-base font-black uppercase text-[#001F3F]">Editar Rol</h2>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Nombre del Rol</label>
+                <input
+                  type="text"
+                  value={nombreEditar}
+                  onChange={e => setNombreEditar(e.target.value)}
+                  disabled={rolEditar.nombre === 'ADMIN'}
+                  className="w-full border border-slate-200 p-3 rounded-xl font-black uppercase text-xs text-[#001F3F] focus:outline-none focus:border-[#001F3F] bg-slate-50/50 disabled:opacity-50"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black uppercase text-slate-400 tracking-wider mb-1">Descripción</label>
+                <input
+                  type="text"
+                  value={descEditar}
+                  onChange={e => setDescEditar(e.target.value)}
+                  className="w-full border border-slate-200 p-3 rounded-xl font-medium text-xs text-[#001F3F] focus:outline-none focus:border-[#001F3F] bg-slate-50/50"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-[#001F3F] text-[#FFB800] p-3.5 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-black transition-all shadow-md"
+              >
+                Actualizar Datos
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Configuración de Permisos (Engranaje) - NO abarca todo el alto y Módulos Cerrados Inicialmente */}
+      {isModalPermisosOpen && rolEditar && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-[#F8FAFC] w-full max-w-[850px] rounded-[2.5rem] p-6 md:p-8 shadow-2xl border border-slate-100 relative max-h-[85vh] overflow-y-auto">
+            <button
+              onClick={() => {
+                setIsModalPermisosOpen(false);
+                setRolEditar(null);
+              }}
+              className="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"
+            >
+              <X size={20} strokeWidth={2.5} />
+            </button>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-3 border-b border-slate-200 gap-3">
+              <div>
+                <span className="text-[9px] font-black uppercase text-[#FFB800] tracking-widest bg-[#001F3F] px-2.5 py-0.5 rounded-full">
+                  Configuración de Accesos
+                </span>
+                <h2 className="text-xl font-black uppercase italic tracking-tighter text-[#001F3F] mt-1.5">
+                  Matriz para Rol: {rolEditar.nombre}
+                </h2>
+                <p className="text-slate-400 font-bold text-[9px] uppercase tracking-wider mt-0.5">
+                  Haz clic en un módulo para desplegar sus submódulos y definir permisos.
+                </p>
+              </div>
+
+              <button
+                onClick={guardarMatrizModal}
+                disabled={isPending || rolEditar.nombre === 'ADMIN'}
+                className="bg-[#001F3F] text-[#FFB800] border border-[#001F3F] text-[10px] font-black px-5 py-3 rounded-xl uppercase flex items-center gap-2 shadow-md hover:bg-black transition-all disabled:opacity-50"
+              >
+                {isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                <span>Guardar Cambios</span>
+              </button>
+            </div>
+
+            {/* Lista de Módulos (Todos colapsados por defecto) */}
+            <div className="space-y-2.5">
+              {ESTRUCTURA_PERMISOS.map(seccion => {
+                const isAbierto = seccionAbierta === seccion.id;
+
+                return (
+                  <div key={seccion.id} className="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden">
+                    <button
+                      onClick={() => toggleSeccionExclusiva(seccion.id)}
+                      className="w-full bg-slate-50/50 px-6 py-3.5 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-white shadow-sm rounded-lg border border-slate-100 text-[#001F3F]">
+                          <seccion.icon size={15} strokeWidth={2.5} />
+                        </div>
+                        <span className="font-black text-xs uppercase tracking-widest text-[#001F3F]">{seccion.label}</span>
+                      </div>
+                      <ChevronDown size={15} className={`text-slate-400 transition-transform duration-300 ${isAbierto ? 'rotate-180 text-[#FFB800]' : ''}`} />
+                    </button>
+
+                    {isAbierto && (
+                      <div className="border-t border-slate-100">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-slate-50 text-slate-400 border-b border-slate-100">
+                              <th className="px-8 py-2.5 text-[9px] font-black uppercase tracking-widest w-1/2">Submódulo</th>
+                              <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-center">Visualizar</th>
+                              <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-center">Crear</th>
+                              <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-center">Editar</th>
+                              <th className="px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-center">Eliminar</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {seccion.submodulos.map(sub => {
+                              const perm = buscarPermiso(sub.id);
+                              const isAdmin = rolEditar.nombre === 'ADMIN';
+
+                              return (
+                                <tr key={sub.id} className="hover:bg-blue-50/10 transition-colors">
+                                  <td className="px-8 py-2.5 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#FFB800]" />
+                                    <span className="font-bold text-xs text-slate-700 uppercase">{sub.label}</span>
+                                  </td>
+                                  <td className="text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isAdmin ? true : perm.ver}
+                                      disabled={isAdmin}
+                                      onChange={() => handleSwitchChange(sub.id, 'ver')}
+                                      className="w-4 h-4 accent-[#001F3F] cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isAdmin ? true : perm.crear}
+                                      disabled={isAdmin}
+                                      onChange={() => handleSwitchChange(sub.id, 'crear')}
+                                      className="w-4 h-4 accent-[#001F3F] cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isAdmin ? true : perm.editar}
+                                      disabled={isAdmin}
+                                      onChange={() => handleSwitchChange(sub.id, 'editar')}
+                                      className="w-4 h-4 accent-[#001F3F] cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isAdmin ? true : perm.eliminar}
+                                      disabled={isAdmin}
+                                      onChange={() => handleSwitchChange(sub.id, 'eliminar')}
+                                      className="w-4 h-4 accent-[#001F3F] cursor-pointer"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

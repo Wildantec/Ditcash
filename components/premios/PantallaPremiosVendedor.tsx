@@ -1,9 +1,10 @@
 'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { getPremios, solicitarCanjeAction } from '@/app/actions/premios'
 import { getSaldoVendedorAction } from '@/app/actions/vendedores'
 import Link from 'next/link'
-import { Gift } from 'lucide-react'
+import { Gift, AlertTriangle } from 'lucide-react'
 import Swal from 'sweetalert2'
 
 interface PantallaPremiosVendedorProps {
@@ -42,17 +43,29 @@ export default function PantallaPremiosVendedor({ accionesPermitidas }: Pantalla
   }, [cargarDatos])
 
   const handleCanjear = async (premio: any) => {
+    if (!accionesPermitidas.crear && !accionesPermitidas.editar) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no dispone de permisos para solicitar canjes de premios.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
     const valorPremio = Number(premio.puntos);
 
     if (saldo < valorPremio) {
+      const faltante = valorPremio - saldo;
       Swal.fire({
         title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">SALDO INSUFICIENTE</span>',
-        text: `Aún te faltan $${(valorPremio - saldo).toFixed(2)} para solicitar este premio.`,
+        text: `Aún te faltan $${faltante.toFixed(2)} para solicitar este premio.`,
         icon: 'info',
         confirmButtonColor: '#001F3F'
       })
       return
     }
+
     const confirmacion = await Swal.fire({
       title: `<span style="font-size:15px; font-weight:900; text-transform:uppercase; color:#001F3F; letter-spacing:0.02em;">¿CONFIRMAR SOLICITUD DE CANJE?</span>`,
       html: `
@@ -64,7 +77,7 @@ export default function PantallaPremiosVendedor({ accionesPermitidas }: Pantalla
           
           <div style="background-color: #fffbeb; border: 1px solid #fef3c7; padding: 12px; border-radius: 12px;">
             <p style="color: #b45309; font-weight: 800; font-size: 10px; text-transform: uppercase; tracking-wider: 0.05em; margin: 0;">
-              ⚠️ NOTA IMPORTANTE DE CONTROL OPERATIVO:
+              NOTA IMPORTANTE DE CONTROL OPERATIVO:
             </p>
             <p style="color: #78350f; font-size: 11px; font-weight: 600; margin: 4px 0 0 0; text-transform: uppercase; font-style: italic;">
               Esta solicitud entrará en cola de revisión para validación administrativa. Recuerda que los artículos del catálogo de incentivos son para uso personal y no deben confundirse ni mezclarse con el stock de productos asignados a tu bodega móvil para la venta regular.
@@ -133,9 +146,10 @@ export default function PantallaPremiosVendedor({ accionesPermitidas }: Pantalla
           </p>
         </div>
       </header>
+
       <div className="bg-amber-50/70 border border-amber-200/60 rounded-[1.5rem] p-5 mb-8 flex flex-col sm:flex-row items-start sm:items-center gap-4 shadow-sm">
         <div className="w-10 h-10 bg-[#FFB800] rounded-xl flex items-center justify-center text-[#001F3F] font-black text-sm shrink-0 shadow-sm">
-          ⚠️
+          <AlertTriangle size={20} strokeWidth={2.5} />
         </div>
         <div className="space-y-0.5">
           <h4 className="text-[10px] font-black uppercase text-amber-800 tracking-wider">
@@ -146,6 +160,7 @@ export default function PantallaPremiosVendedor({ accionesPermitidas }: Pantalla
           </p>
         </div>
       </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
         {premios.map((p) => {
           const valorPremio = Number(p.puntos);

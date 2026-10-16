@@ -1,48 +1,74 @@
 'use client'
-import { useState } from 'react';
-import Image from "next/image";
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
-import Swal from 'sweetalert2';
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import Navbar from '@/components/Navbar'
+import Footer from '@/components/Footer'
+import Swal from 'sweetalert2'
 
 export default function RegisterPage() {
-  const [cedula, setCedula] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [cedula, setCedula] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   const manejarRegistro = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+
+    if (cedula.length !== 10) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">Cédula Incompleta</span>',
+        text: 'La cédula de identidad debe contener exactamente 10 dígitos.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
+    setLoading(true)
     
     try {
-      console.log({ cedula, password, role: 'CLIENTE' });
-      setTimeout(() => {
+      const res = await fetch('/api/clientes/registro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cedula, password, role: 'CLIENTE' })
+      })
+
+      const data = await res.json()
+
+      if (res.ok && data.success) {
         Swal.fire({
           title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">Sincronización Exitosa</span>',
-          text: 'Su cuenta ha sido validada con el sistema contable.',
+          text: 'Su cuenta ha sido validada y activada con éxito.',
           icon: 'success',
           confirmButtonColor: '#001F3F',
           confirmButtonText: 'CONTINUAR'
         }).then(() => {
-          router.push('/'); 
-        });
-      }, 1500);
+          router.push('/')
+        })
+      } else {
+        Swal.fire({
+          title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">Error de Validación</span>',
+          text: data.error || 'No se pudo verificar su número de cédula en el sistema contable.',
+          icon: 'error',
+          confirmButtonColor: '#001F3F',
+          confirmButtonText: 'REINTENTAR'
+        })
+      }
 
     } catch (error) {
       Swal.fire({
-        title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">Error de Validación</span>',
-        text: 'Error al validar los datos con el sistema contable.',
+        title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">Error de Conexión</span>',
+        text: 'Ocurrió un problema al comunicarse con el servidor central.',
         icon: 'error',
         confirmButtonColor: '#001F3F',
-        confirmButtonText: 'REINTENTAR'
-      });
+        confirmButtonText: 'ENTENDIDO'
+      })
     } finally {
-      setTimeout(() => setLoading(false), 1500);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-[#F4F7FA]">
@@ -108,8 +134,8 @@ export default function RegisterPage() {
 
             <button 
               type="submit"
-              disabled={loading}
-              className="w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 bg-[#001F3F] text-[#FFB800] hover:bg-black disabled:bg-slate-100 disabled:text-slate-300"
+              disabled={loading || cedula.length !== 10 || !password}
+              className="w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 bg-[#001F3F] text-[#FFB800] hover:bg-black disabled:bg-slate-100 disabled:text-slate-300 cursor-pointer"
             >
               {loading ? 'Verificando Cliente...' : 'Activar mi Cuenta ➔'}
             </button>
@@ -130,5 +156,5 @@ export default function RegisterPage() {
 
       <Footer />
     </div>
-  );
+  )
 }

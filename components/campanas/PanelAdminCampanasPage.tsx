@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { deleteCampana, createCampana, updateCampana } from '@/app/actions/campanas'
 import Swal from 'sweetalert2'
-import { Rocket, Loader2, X, Plus, Eye, Edit2, Trash2 } from 'lucide-react'
+import { Rocket, Loader2, X, Plus, Eye, Edit2, Trash2, ShieldAlert } from 'lucide-react'
 
 interface PanelAdminCampanasProps {
   accionesPermitidas: {
@@ -17,7 +17,7 @@ interface PanelAdminCampanasProps {
 }
 
 export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIniciales }: PanelAdminCampanasProps) {
-  const [campanas, setCampanas] = useState<any[]>(campanasIniciales)
+  const [campanas, setCampanas] = useState<any[]>(campanasIniciales || [])
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
@@ -33,6 +33,17 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
 
   async function handleSubmitCrear(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    if (!accionesPermitidas.crear) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no tiene permisos para estructurar nuevas campañas.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
     setModalLoading(true)
 
     const formData = new FormData(e.currentTarget)
@@ -59,7 +70,18 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
       })
     }
   }
+
   const abrirModalEditar = (campana: any) => {
+    if (!accionesPermitidas.editar) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no dispone de permisos para modificar parámetros de campaña.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
     const fInicio = campana.fechaInicio ? new Date(campana.fechaInicio).toISOString().split('T')[0] : ''
     const fFin = campana.fechaFin ? new Date(campana.fechaFin).toISOString().split('T')[0] : ''
 
@@ -70,8 +92,20 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
     })
     setIsEditModalOpen(true)
   }
+
   async function handleSubmitEditar(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    if (!accionesPermitidas.editar) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no tiene permisos para actualizar campañas.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
     setEditLoading(true)
 
     const formData = new FormData(e.currentTarget)
@@ -109,6 +143,16 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
   }
 
   const eliminarCampana = async (id: number, nombre: string) => {
+    if (!accionesPermitidas.eliminar) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no tiene permisos para eliminar estrategias de la base de datos.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
     const { isConfirmed } = await Swal.fire({
       title: '<span style="font-size:18px; font-weight:bold; text-transform:uppercase;">¿Eliminar Campaña?</span>',
       text: `Esta acción borrará: ${nombre}`,
@@ -127,9 +171,25 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
       } else {
         setCampanas(campanas.filter(c => c.id !== id))
         router.refresh()
-        Swal.fire('¡Eliminado!', '', 'success')
+        Swal.fire({ title: '¡Eliminado!', text: 'Registro removido con éxito.', icon: 'success', confirmButtonColor: '#001F3F' })
       }
     }
+  }
+
+  if (!accionesPermitidas.ver) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-12 flex flex-col items-center justify-center text-[#001F3F]">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center max-w-md">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert size={32} strokeWidth={2.5} />
+          </div>
+          <h2 className="text-xl font-black uppercase italic tracking-tighter">Acceso Denegado</h2>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">
+            Tu rol no dispone de permisos para administrar o visualizar campañas.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -208,16 +268,16 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
                 </td>
                 <td className="px-8 py-6 text-right align-top">
                   <div className="flex justify-end items-center gap-4 text-[10px] font-black tracking-wider">
-                    <button onClick={() => { setCampanaAVer(c); setIsViewModalOpen(true) }} className="text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1">
+                    <button onClick={() => { setCampanaAVer(c); setIsViewModalOpen(true) }} className="text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1" title="Ver Ficha">
                       <Eye size={12} />
                     </button>
                     {accionesPermitidas.editar && (
-                      <button onClick={() => abrirModalEditar(c)} className="text-[#001F3F] hover:text-[#FFB800] transition-all flex items-center gap-1">
+                      <button onClick={() => abrirModalEditar(c)} className="text-[#001F3F] hover:text-[#FFB800] transition-all flex items-center gap-1" title="Editar Campaña">
                         <Edit2 size={12} />
                       </button>
                     )}
                     {accionesPermitidas.eliminar && (
-                      <button onClick={() => eliminarCampana(c.id, c.nombre)} className="text-red-400 hover:text-red-600 transition-all flex items-center gap-1">
+                      <button onClick={() => eliminarCampana(c.id, c.nombre)} className="text-red-400 hover:text-red-600 transition-all flex items-center gap-1" title="Eliminar Campaña">
                         <Trash2 size={12} />
                       </button>
                     )}
@@ -228,6 +288,7 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
           </tbody>
         </table>
       </div>
+
       <div className="lg:hidden flex flex-col gap-6">
         {campanas.map((c) => (
           <div key={c.id} className="bg-white rounded-[2rem] p-6 shadow-lg border border-slate-100">
@@ -282,7 +343,9 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
           <p className="text-slate-300 font-bold text-[10px] uppercase tracking-widest italic">No existen campañas registradas actualmente.</p>
         </div>
       )}
-      {isModalOpen && (
+
+      {/* MODAL CREAR CAMPAÑA */}
+      {isModalOpen &&accionesPermitidas.crear && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[500px] rounded-2xl p-6 shadow-2xl border border-slate-200 relative">
             <button type="button" className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors" onClick={() => setIsModalOpen(false)}>
@@ -335,7 +398,9 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
           </div>
         </div>
       )}
-      {isEditModalOpen && campanaAEditar && (
+
+      {/* MODAL EDITAR CAMPAÑA */}
+      {isEditModalOpen && campanaAEditar && accionesPermitidas.editar && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[500px] rounded-2xl p-6 shadow-2xl border border-slate-200 relative">
             <button type="button" className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors" onClick={() => setIsEditModalOpen(false)}>
@@ -389,6 +454,8 @@ export default function PanelAdminCampanasPage({ accionesPermitidas, campanasIni
           </div>
         </div>
       )}
+
+      {/* MODAL VER FICHA */}
       {isViewModalOpen && campanaAVer && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[480px] rounded-[2rem] p-6 shadow-2xl border border-slate-200 relative">

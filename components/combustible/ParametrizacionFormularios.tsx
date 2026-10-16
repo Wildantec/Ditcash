@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { crearVehiculoAction, registrarMantenimientoAction, eliminarVehiculoAction } from '@/app/actions/combustible'
 import { exportarVehiculosExcel } from '@/app/actions/reportes'
-import { Car, Plus, Trash2, Edit2, X, Loader2, FileSpreadsheet, ChevronDown, User, Wrench, Calculator, RefreshCw, History, ShieldCheck, FileText, Calendar, DollarSign, RotateCcw } from 'lucide-react'
+import { Car, Plus, Trash2, Edit2, X, Loader2, FileSpreadsheet, ChevronDown, User, Wrench, Calculator, History, ShieldCheck, FileText, Calendar, DollarSign, RotateCcw, RefreshCw } from 'lucide-react'
 import Swal from 'sweetalert2'
 
 import CalculadoraCombustibleModal from './CalculadoraCombustibleModal'
@@ -14,8 +14,8 @@ interface ModuloVehiculosProps {
   vendedores: any[]
 }
 
-export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedores }: ModuloVehiculosProps) {
-  const [listaKardex, setListaKardex] = useState(kardexInicial)
+export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [], vendedores = [] }: ModuloVehiculosProps) {
+  const [listaKardex, setListaKardex] = useState<any[]>(kardexInicial)
   const [tablaRenderizada, setTablaRenderizada] = useState<any[]>([])
 
   const [isModalNuevoOpen, setIsModalNuevoOpen] = useState(false)
@@ -31,8 +31,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
   const [isPlacaDropdownOpen, setIsPlacaDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const placaDropdownRef = useRef<HTMLDivElement>(null)
-  
-  // Filtros reactivos corporativos DITEC
+
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
   const [filtroPlaca, setFiltroPlaca] = useState('')
@@ -40,20 +39,17 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
 
   const [esModoTraspaso, setEsModoTraspaso] = useState(false)
 
-  // Formulario Registro / Edición Completa de Fila Maestro
   const [vehiculoIdEditar, setVehiculoIdEditar] = useState<number | null>(null)
   const [placa, setPlaca] = useState('')
   const [marcaModelo, setMarcaModelo] = useState('')
   const [kmInicialForm, setKmInicialForm] = useState('')
   const [vendedorId, setVendedorId] = useState('')
-  
-  // Variables de Taller para corrección manual
+
   const [editTaller, setEditTaller] = useState('')
   const [editFactura, setEditFactura] = useState('')
   const [editCosto, setEditCosto] = useState('')
   const [editDescripcion, setEditDescripcion] = useState('')
 
-  // Formulario Registrar Nuevo Mantenimiento Logístico
   const [maintPlaca, setMaintPlaca] = useState('')
   const [maintKm, setMaintKm] = useState('')
   const [maintTaller, setMaintTaller] = useState('')
@@ -63,6 +59,10 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
   const [maintDescripcion, setMaintDescripcion] = useState('')
 
   const vendedorSeleccionado = vendedorId ? vendedores.find(v => v.id.toString() === vendedorId) : null
+
+  useEffect(() => {
+    setListaKardex(kardexInicial)
+  }, [kardexInicial])
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -76,10 +76,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
-
-  // 🚀 MOTOR DE RENDERIZADO DINÁMICO (MODO RESUMEN VS MODO KARDEX HISTÓRICO)
   useEffect(() => {
-    // 1. Filtrar el Kardex global bajo los parámetros de búsqueda activos
     const filtrados = listaKardex.filter((k) => {
       const vendedorObj = vendedores.find(v => v.id.toString() === filtroVendedor)
       const nombreVendedorFiltro = vendedorObj ? vendedorObj.nombre.toUpperCase() : ''
@@ -105,15 +102,11 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
       
       return cumpleVendedor && cumplePlaca && cumpleFecha
     })
-
-    // 2. Evaluar si los filtros de búsqueda están limpios o activos
     const estanFiltrosLimpios = filtroPlaca === '' && filtroVendedor === '' && fechaDesde === '' && fechaHasta === ''
 
     if (estanFiltrosLimpios) {
-      // 🚀 MODO RESUMEN: Mostrar solo el último hito vigente por cada número de placa
       const mapeoUltimoHito: { [key: string]: any } = {}
       
-      // Como listaKardex viene ordenada con los id más recientes primero, el primer registro que encontramos por placa es el actual vigente
       listaKardex.forEach((registro) => {
         const nPlaca = registro.vehiculo?.placa
         if (nPlaca && !mapeoUltimoHito[nPlaca]) {
@@ -123,7 +116,6 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
 
       setTablaRenderizada(Object.values(mapeoUltimoHito))
     } else {
-      // 🚀 MODO KARDEX: Mostrar todas las filas del historial detallado que cumplan con la búsqueda
       setTablaRenderizada(filtrados)
     }
   }, [listaKardex, filtroVendedor, filtroPlaca, fechaDesde, fechaHasta, vendedores])
@@ -178,7 +170,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
     setVehiculoIdEditar(v.id)
     setPlaca(v.placa)
     setMarcaModelo(v.marcaModelo)
-    setKmInicialForm(registroKardex.kmMantenimiento ? registroKardex.kmMantenimiento.toString() : v.kmUltimoAceite.toString())
+    setKmInicialForm(registroKardex.kmMantenimiento ? registroKardex.kmMantenimiento.toString() : (v.kmUltimoAceite || v.kmActual || 0).toString())
     setVendedorId(v.asignaciones?.[0]?.userId?.toString() || '')
     
     setEditTaller(registroKardex.taller || v.tallerMantenimiento || '')
@@ -195,7 +187,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
     if (carro) {
       setPlaca(carro.placa)
       setMarcaModelo(carro.marcaModelo)
-      setKmInicialForm(carro.kmActual.toString())
+      setKmInicialForm((carro.kmActual || 0).toString())
     }
   }
 
@@ -234,7 +226,47 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
       : await crearVehiculoAction(payload)
 
     if (res.success || res.id) {
-      Swal.fire('Éxito', vehiculoIdEditar ? 'Auditoría de registro actualizada con éxito.' : esModoTraspaso ? 'Cambio de vendedor registrado.' : 'Vehículo ingresado.', 'success').then(() => window.location.reload())
+      setIsModalNuevoOpen(false)
+      const vNombre = vendedores.find(v => v.id.toString() === vendedorId)?.nombre || 'SIN ASIGNAR'
+
+      if (vehiculoIdEditar) {
+        setListaKardex(prev => prev.map(item => item.vehiculo?.id === vehiculoIdEditar ? {
+          ...item,
+          choferEnEseMomento: vNombre,
+          taller: editTaller.toUpperCase().trim(),
+          factura: editFactura.toUpperCase().trim(),
+          costoTransaccion: parseFloat(editCosto || '0'),
+          observaciones: editDescripcion.toUpperCase().trim(),
+          vehiculo: {
+            ...item.vehiculo,
+            placa: payload.placa,
+            marcaModelo: payload.marcaModelo,
+            kmActual: payload.kmActual
+          }
+        } : item))
+      } else {
+        const nuevoRegistro = {
+          id: Date.now(),
+          fechaTransaccion: new Date().toISOString(),
+          choferEnEseMomento: vNombre,
+          kmMantenimiento: payload.kmActual,
+          kmEnEseMomento: payload.kmActual,
+          tipoMovimiento: esModoTraspaso ? 'TRASPASO' : 'INGRESO',
+          taller: payload.tallerMantenimiento,
+          factura: payload.numFacturaMantenimiento,
+          costoTransaccion: payload.costoUltimoMantenimiento,
+          observaciones: payload.descripcionMantenimiento || 'REGISTRO DE UNIDAD',
+          vehiculo: {
+            id: res.id || Date.now(),
+            placa: payload.placa,
+            marcaModelo: payload.marcaModelo,
+            kmActual: payload.kmActual
+          }
+        }
+        setListaKardex(prev => [nuevoRegistro, ...prev])
+      }
+
+      Swal.fire('Éxito', vehiculoIdEditar ? 'Auditoría de registro actualizada.' : esModoTraspaso ? 'Cambio de vendedor registrado.' : 'Vehículo ingresado con éxito.', 'success')
     } else {
       Swal.fire('Error', res.error || 'No se pudo procesar la solicitud.', 'error')
     }
@@ -253,8 +285,28 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
       fechaFactura: maintFecha ? new Date(maintFecha) : new Date(),
       descripcion: maintDescripcion
     })
+
     if (res.success) {
-      Swal.fire('Éxito', 'Mantenimiento registrado en el Kardex.', 'success').then(() => window.location.reload())
+      setIsModalMantenimientoOpen(false)
+      const carro = vehiculos.find(v => v.placa === maintPlaca)
+      const vNombre = carro?.asignaciones?.[0]?.user?.nombre || 'SIN ASIGNAR'
+
+      const nuevoMantenimiento = {
+        id: Date.now(),
+        fechaTransaccion: maintFecha || new Date().toISOString(),
+        choferEnEseMomento: vNombre,
+        kmMantenimiento: parseFloat(maintKm || '0'),
+        kmEnEseMomento: parseFloat(maintKm || '0'),
+        tipoMovimiento: 'MANTENIMIENTO',
+        taller: maintTaller.toUpperCase(),
+        factura: maintFactura.toUpperCase(),
+        costoTransaccion: parseFloat(maintCosto || '0'),
+        observaciones: maintDescripcion.toUpperCase(),
+        vehiculo: carro ? { id: carro.id, placa: carro.placa, marcaModelo: carro.marcaModelo } : { placa: maintPlaca, marcaModelo: 'DESCONOCIDO' }
+      }
+
+      setListaKardex(prev => [nuevoMantenimiento, ...prev])
+      Swal.fire('Éxito', 'Mantenimiento registrado en el Kardex.', 'success')
     } else {
       Swal.fire('Error', (res as any).error, 'error')
     }
@@ -266,7 +318,8 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
     if (result.isConfirmed) {
       const res = await eliminarVehiculoAction(id)
       if (res.success) {
-        Swal.fire('Eliminado', 'Vehículo removido con éxito.', 'success').then(() => window.location.reload())
+        setListaKardex(prev => prev.filter(k => k.id !== id && k.vehiculoId !== id))
+        Swal.fire('Eliminado', 'Vehículo removido con éxito.', 'success')
       }
     }
   }
@@ -347,7 +400,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
                 
                 const kmInicialTramo = k.kmMantenimiento || 0
                 const kmActualTramo = k.kmEnEseMomento || 0
-                const kmRecorridosTramo = kmActualTramo >= kmInicialTramo ? kmActualTramo - kmInicialTramo : 0
+                const kmRecorridosTramo = kmActualTramo >= kmInicialTramo ? (kmActualTramo - kmInicialTramo) : 0
 
                 return (
                   <tr key={k.id} className="hover:bg-slate-50/60 transition-colors">
@@ -405,7 +458,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
               {vehiculoKardexSeleccionado.historialKardex?.map((k: any) => {
                 const kmInit = k.kmMantenimiento || 0
                 const kmEnd = k.kmEnEseMomento || 0
-                const kmDiff = kmEnd >= kmInit ? kmEnd - kmInit : 0
+                const kmDiff = kmEnd >= kmInit ? (kmEnd - kmInit) : 0
 
                 return (
                   <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between gap-3 text-[11px] font-bold text-slate-600">
@@ -470,7 +523,9 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
                 {esModoTraspaso ? (
                   <select value={placa} onChange={(e) => handleSeleccionarCarroExistente(e.target.value)} required className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-black text-xs text-[#001F3F] focus:outline-none uppercase font-mono tracking-widest cursor-pointer h-[34px]">
                     <option value="">-- SELECCIONE UN VEHÍCULO --</option>
-                    {vehiculos.map(v => (<option key={v.id} value={v.placa}>{v.placa} - {v.marcaModelo}</option>))}
+                    {vehiculos.map(v => (
+                      <option key={v.id} value={v.placa}>{v.placa} - {v.marcaModelo}</option>
+                    ))}
                   </select>
                 ) : (
                   <input type="text" required disabled={!!vehiculoIdEditar} placeholder="EJ: PBA-1234" value={placa} onChange={(e) => setPlaca(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-black text-xs font-mono tracking-widest uppercase h-[34px] disabled:opacity-60" />
@@ -544,7 +599,9 @@ export default function ModuloVehiculosAdmin({ kardexInicial, vehiculos, vendedo
                 <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Seleccionar Placa Vehicular</label>
                 <select value={maintPlaca} onChange={(e) => setMaintPlaca(e.target.value)} required className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-black text-xs uppercase h-[34px]">
                   <option value="">-- SELECCIONE --</option>
-                  {vehiculos.map(v => (<option key={v.id} value={v.placa}>{v.placa} - {v.marcaModelo}</option>))}
+                  {vehiculos.map(v => (
+                    <option key={v.id} value={v.placa}>{v.placa} - {v.marcaModelo}</option>
+                  ))}
                 </select>
               </div>
               <div><label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Kilómetros en Tablero (Marcación de Entrada)</label><input type="number" required placeholder="EJ: 25000" value={maintKm} onChange={(e) => setMaintKm(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-black text-xs font-mono h-[34px]" /></div>

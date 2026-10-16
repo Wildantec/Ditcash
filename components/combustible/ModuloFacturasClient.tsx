@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { registrarFacturaCombustible, eliminarFacturaCombustibleAction } from '@/app/actions/combustible'
-import { FileText, Plus, Trash2, Loader2, DollarSign, X, Edit2, Download } from 'lucide-react'
+import { FileText, Plus, Trash2, Loader2, DollarSign, X, Edit2, Download, Fuel, ShieldCheck, ShieldAlert } from 'lucide-react'
 import Swal from 'sweetalert2'
 import { exportarFacturasCombustibleExcel } from '@/app/actions/reportes-oficina'
 
@@ -18,6 +19,7 @@ export default function ModuloFacturasClient({
   gasolineras = [], 
   vendedores = [] 
 }: ModuloFacturasClientProps) {
+  const router = useRouter()
   const [listaRegistros, setListaRegistros] = useState<any[]>(facturasIniciales)
   const [registrosFiltrados, setRegistrosFiltrados] = useState<any[]>(facturasIniciales)
   const [loading, setLoading] = useState(false)
@@ -39,18 +41,53 @@ export default function ModuloFacturasClient({
 
   const [saldoSeleccionado, setSaldoSeleccionado] = useState<number | null>(null)
 
+  const [totalConsumido, setTotalConsumido] = useState(0)
+  const [totalConvenio, setTotalConvenio] = useState(0)
+  const [totalFueraConvenio, setTotalFueraConvenio] = useState(0)
+
   useEffect(() => {
     setListaRegistros(facturasIniciales)
   }, [facturasIniciales])
 
-  // 🚀 BÚSQUEDA AUTOMÁTICA EN TIEMPO REAL (SIN BOTÓN DE FILTRAR)
   useEffect(() => {
     let aux = [...listaRegistros]
-    if (fechaDesde !== '') aux = aux.filter(r => r?.fechaFactura?.split('T')[0] >= fechaDesde)
-    if (fechaHasta !== '') aux = aux.filter(r => r?.fechaFactura?.split('T')[0] <= fechaHasta)
-    if (filtroEstacion !== '') aux = aux.filter(r => Number(r?.gasolineraId) === Number(filtroEstacion))
-    if (filtroVendedor !== '') aux = aux.filter(r => r?.chofer?.toUpperCase() === filtroVendedor.toUpperCase())
+
+    const obtenerFechaCadena = (fechaObj: any): string => {
+      if (!fechaObj) return ''
+      if (typeof fechaObj === 'string') return fechaObj.split('T')[0]
+      if (fechaObj instanceof Date) return fechaObj.toISOString().split('T')[0]
+      try {
+        return new Date(fechaObj).toISOString().split('T')[0]
+      } catch {
+        return ''
+      }
+    }
+
+    if (fechaDesde !== '') {
+      aux = aux.filter(r => obtenerFechaCadena(r?.fechaFactura) >= fechaDesde)
+    }
+
+    if (fechaHasta !== '') {
+      aux = aux.filter(r => obtenerFechaCadena(r?.fechaFactura) <= fechaHasta)
+    }
+
+    if (filtroEstacion !== '') {
+      aux = aux.filter(r => Number(r?.gasolineraId) === Number(filtroEstacion))
+    }
+
+    if (filtroVendedor !== '') {
+      aux = aux.filter(r => String(r?.chofer || '').trim().toUpperCase() === filtroVendedor.trim().toUpperCase())
+    }
+    
     setRegistrosFiltrados(aux)
+
+    const tot = aux.reduce((sum, r) => sum + Number(r.precioTotal || 0), 0)
+    const conv = aux.reduce((sum, r) => sum + (r.metodoPago !== 'NO CONVENIO' ? Number(r.precioTotal || 0) : 0), 0)
+    const fuera = aux.reduce((sum, r) => sum + (r.metodoPago === 'NO CONVENIO' ? Number(r.precioTotal || 0) : 0), 0)
+
+    setTotalConsumido(tot)
+    setTotalConvenio(conv)
+    setTotalFueraConvenio(fuera)
   }, [listaRegistros, fechaDesde, fechaHasta, filtroEstacion, filtroVendedor])
 
   useEffect(() => {
@@ -89,7 +126,13 @@ export default function ModuloFacturasClient({
     setChofer(r.chofer || '')
     setNumFactura(r.numFactura && !r.numFactura.includes('-SEC-') ? r.numFactura : '')
     setPrecioTotal(String(r.precioTotal || ''))
-    setFechaFactura(r.fechaFactura ? r.fechaFactura.split('T')[0] : '')
+    
+    const fechaObj = r.fechaFactura
+    const fCadena = typeof fechaObj === 'string' 
+      ? fechaObj.split('T')[0] 
+      : (fechaObj instanceof Date ? fechaObj.toISOString().split('T')[0] : '')
+
+    setFechaFactura(fCadena)
     setIsModalOpen(true)
   }
 
@@ -104,7 +147,8 @@ export default function ModuloFacturasClient({
       return
     }
 
-    const vSel = vendedores.find(v => v.nombre === chofer)
+    const choferLimpio = chofer.trim().toUpperCase()
+    const vSel = vendedores.find(v => String(v.nombre).trim().toUpperCase() === choferLimpio)
     const placaAsignada = vSel?.asignacionesVehiculo?.[0]?.vehiculo?.placa || 'DIT-000'
 
     const payload = {
@@ -113,7 +157,7 @@ export default function ModuloFacturasClient({
       metodoPago,
       gasolineraId: metodoPago === 'CONVENIO' ? Number(gasolineraId) : 0,
       nombreEstacionManual: metodoPago === 'NO CONVENIO' ? nombreEstacionManual.trim().toUpperCase() : undefined,
-      chofer: chofer.toUpperCase(),
+      chofer: choferLimpio,
       placaCarro: placaAsignada.toUpperCase(), 
       numFactura: numFactura.trim().toUpperCase(),
       precioTotal: precio,
@@ -122,10 +166,37 @@ export default function ModuloFacturasClient({
     }
 
     const res = await registrarFacturaCombustible(payload)
+    
     if (res.success) {
       setIsModalOpen(false)
+      setLoading(false)
+      
+      const estacionEncontrada = gasolineras.find(g => Number(g.id) === Number(gasolineraId))
+
+      if (filtroVendedor && filtroVendedor.trim().toUpperCase() !== choferLimpio) {
+        setFiltroVendedor('')
+      }
+
+      if (editingId) {
+        setListaRegistros(prev => prev.map(item => item.id === editingId ? {
+          ...item,
+          ...payload,
+          id: editingId,
+          fechaFactura: payload.fechaFactura.toISOString(),
+          gasolinera: estacionEncontrada || item.gasolinera
+        } : item))
+      } else {
+        const idNuevo = Date.now()
+        setListaRegistros(prev => [{
+          ...payload,
+          id: idNuevo,
+          fechaFactura: payload.fechaFactura.toISOString(),
+          gasolinera: estacionEncontrada
+        }, ...prev])
+      }
+
       Swal.fire('Confirmado', editingId ? 'Factura actualizada con éxito.' : 'Factura registrada con éxito.', 'success')
-        .then(() => window.location.reload())
+      router.refresh()
     } else {
       Swal.fire('Error de Validación', res.error || 'No se pudo guardar la transacción.', 'error')
       setLoading(false)
@@ -144,7 +215,10 @@ export default function ModuloFacturasClient({
     })
     if (result.isConfirmed) {
       const res = await eliminarFacturaCombustibleAction(id)
-      if (res.success) window.location.reload()
+      if (res.success) {
+        setListaRegistros(prev => prev.filter(item => item.id !== id))
+        router.refresh()
+      }
     }
   }
 
@@ -178,7 +252,7 @@ export default function ModuloFacturasClient({
       } else {
         Swal.fire('Error', res.error || 'No se pudo generar el archivo de Excel.', 'error');
       }
-    } catch (err: any) {
+    } catch {
       Swal.close();
       Swal.fire('Error', 'Ocurrió un fallo en la exportación.', 'error');
     }
@@ -209,7 +283,34 @@ export default function ModuloFacturasClient({
         </div>
       </header>
 
-      {/* FILTROS CON BÚSQUEDA AUTOMÁTICA (SIN BOTÓN DE FILTRAR) */}
+      {/* KPIS DE RESUMEN SUPERIORES */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Gasto Total {filtroVendedor ? `(${filtroVendedor})` : '(General)'}</p>
+            <p className="text-xl font-mono font-black text-[#001F3F]">${totalConsumido.toFixed(2)}</p>
+          </div>
+          <div className="w-10 h-10 bg-slate-100 text-[#001F3F] rounded-xl flex items-center justify-center"><Fuel size={20} /></div>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">En Estaciones Con Convenio</p>
+            <p className="text-xl font-mono font-black text-blue-600">${totalConvenio.toFixed(2)}</p>
+          </div>
+          <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center"><ShieldCheck size={20} /></div>
+        </div>
+
+        <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fuera de Convenio</p>
+            <p className="text-xl font-mono font-black text-amber-600">${totalFueraConvenio.toFixed(2)}</p>
+          </div>
+          <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center"><ShieldAlert size={20} /></div>
+        </div>
+      </div>
+
+      {/* FILTROS CON BÚSQUEDA AUTOMÁTICA */}
       <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 shadow-inner flex flex-col lg:flex-row items-end gap-3 w-full">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 flex-1 w-full">
           <div className="flex flex-col gap-1 w-full">
@@ -244,10 +345,10 @@ export default function ModuloFacturasClient({
         </div>
       </div>
 
-      {/* TABLA DE FACTURAS RECONSTRUIDA Y ALINEADA */}
+      {/* TABLA DE FACTURAS */}
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden w-full">
-        <div className="w-full">
-          <table className="w-full text-left border-collapse text-xs table-fixed">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs table-fixed min-w-[800px]">
             <thead>
               <tr className="bg-[#001F3F] text-white font-black text-[10px] uppercase tracking-widest border-b border-slate-700">
                 <th className="p-4 pl-6 w-[12%]">Fecha Fact.</th>
@@ -270,7 +371,11 @@ export default function ModuloFacturasClient({
                 registrosFiltrados.map((r: any) => (
                   <tr key={r.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="p-4 pl-6 font-mono text-slate-500 whitespace-nowrap">
-                      {r.fechaFactura ? r.fechaFactura.split('T')[0] : 'S/F'}
+                      {r.fechaFactura 
+                        ? (typeof r.fechaFactura === 'string' 
+                            ? r.fechaFactura.split('T')[0] 
+                            : new Date(r.fechaFactura).toISOString().split('T')[0])
+                        : 'S/F'}
                     </td>
                     
                     <td className="p-4 text-center">
@@ -284,7 +389,7 @@ export default function ModuloFacturasClient({
                     </td>
 
                     <td className="p-4 uppercase font-black text-[#001F3F] truncate">
-                      {r.metodoPago === 'NO CONVENIO' ? (r.nombreEstacionManual || 'ESTACIÓN EXTERNA') : r.gasolinera?.nombre}
+                      {r.metodoPago === 'NO CONVENIO' ? (r.nombreEstacionManual || 'ESTACIÓN EXTERNA') : (r.gasolinera?.nombre || 'ESTACIÓN DE CONVENIO')}
                     </td>
 
                     <td className="p-4">
@@ -325,7 +430,7 @@ export default function ModuloFacturasClient({
         </div>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL EDITAR / INGRESAR FACTURA */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-[440px] rounded-2xl p-6 shadow-2xl border border-slate-200 relative">

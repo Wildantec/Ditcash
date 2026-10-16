@@ -16,6 +16,7 @@ export default function DetalleCuotas({ invoiceId, salesNoteId, token, montoTota
 
   useEffect(() => {
     async function cargarCuotas() {
+      if (!invoiceId && !salesNoteId) return;
       setCargando(true)
       setError(null)
       try {
@@ -86,7 +87,7 @@ export default function DetalleCuotas({ invoiceId, salesNoteId, token, montoTota
               const fechaVence = cuota.date_due || cuota.due_date || "N/A";
               const totalCuota = Number(cuota.total_amount || cuota.amount || 0);
               const saldoCuota = Number(cuota.balance || cuota.total_balance || 0);
-              const abonadoCuota = totalCuota - saldoCuota;
+              const abonadoCuota = Math.max(0, totalCuota - saldoCuota);
 
               return (
                 <tr key={cuota.id || i} className="text-xs text-slate-600 font-medium hover:bg-slate-50/40">

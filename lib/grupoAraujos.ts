@@ -1,5 +1,6 @@
 const API_BASE = "https://grupoaraujos.cloud/api/v1";
-async function obtenerTokenContable() {
+
+export async function obtenerTokenContable(): Promise<string | null> {
   try {
     const response = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
@@ -15,25 +16,17 @@ async function obtenerTokenContable() {
     const resData = await response.json();
     return resData.data?.access_token || resData.access_token || null;
   } catch (error) {
+    console.error("Error obteniendo token contable:", error);
     return null;
   }
 }
 
 export async function consultarClienteExterno(cedula: string) {
   try {
-    const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: process.env.API_CONTABLE_EMAIL || "soporte@disar-ec.com",
-        password: process.env.API_CONTABLE_PASSWORD || "admin123",
-      }),
-    });
-    
-    if (!tokenResponse.ok) return null;
-    const tokenData = await tokenResponse.json();
-    const token = tokenData.data?.access_token || tokenData.access_token;
-    const url = `${API_BASE}/clients?search=${cedula}&size=1`;
+    const token = await obtenerTokenContable();
+    if (!token) return null;
+
+    const url = `${API_BASE}/clients?search=${encodeURIComponent(cedula)}&size=10`;
     
     const res = await fetch(url, {
       method: 'GET',
@@ -59,13 +52,16 @@ export async function consultarClienteExterno(cedula: string) {
     return {
       idInterno: clienteEncontrado.id,
       nombre: (clienteEncontrado.full_name || clienteEncontrado.business_name || "CLIENTE REGISTRADO").toUpperCase().trim(),
-      existe: true
+      existe: true,
+      dataCompleta: clienteEncontrado
     };
 
   } catch (error) {
+    console.error("Error al consultar cliente externo:", error);
     return null;
   }
 }
+
 export async function obtenerInventarioConReintento(intentosMaximos = 3, tiempoEsperaMS = 25000) {
   const token = await obtenerTokenContable();
   if (!token) {
@@ -101,13 +97,16 @@ export async function obtenerInventarioConReintento(intentosMaximos = 3, tiempoE
     } catch (error: any) {
       clearTimeout(timeoutId);
 
-      if (error.name === 'AbortError') {
-      } else {
-      }
+      const esAbort = error.name === 'AbortError';
+      console.warn(`[Intento ${intento}/${intentosMaximos}] Error al consultar inventario: ${esAbort ? 'Timeout' : error.message}`);
+
       if (intento < intentosMaximos) {
         await new Promise(resolve => setTimeout(resolve, 1500));
       } else {
-        return { error: "TIMEOUT_ERROR", message: "La API externa de inventario tardó demasiado en responder." };
+        return { 
+          error: "TIMEOUT_ERROR", 
+          message: "La API externa de inventario tardó demasiado en responder." 
+        };
       }
     }
   }

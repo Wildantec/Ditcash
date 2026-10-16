@@ -2,6 +2,21 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+
+async function validarPermisoUsuarioActual(usuarioEjecutorId: number, moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
+  if (!usuarioEjecutorId) return true
+
+  const usuario = await prisma.user.findUnique({
+    where: { id: usuarioEjecutorId },
+    include: { role: true }
+  })
+
+  if (!usuario) return false
+
+  const permisosObj = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
+  return tienePermiso(permisosObj, usuario.role?.nombre || usuario.rol, moduloId, accion)
+}
 
 async function obtenerTokenAraujo(): Promise<string | null> {
   try {
@@ -57,10 +72,26 @@ export async function crearUsuarioAction(data: {
   cedula: string
   nombreCompleto: string
   rol: string
+  roleId?: number
+  usuarioEjecutorId?: number
 }) {
   try {
+    if (data.usuarioEjecutorId) {
+      const autorizado = await validarPermisoUsuarioActual(data.usuarioEjecutorId, 'usuarios', 'crear');
+      if (!autorizado) {
+        return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para CREAR usuarios.' };
+      }
+    }
+
     const cedulaLimpia = data.cedula.trim();
     const usernameLimpio = data.username.trim();
+    const regexCedula = /^\d{10}$/;
+    if (!regexCedula.test(cedulaLimpia)) {
+      return { 
+        success: false, 
+        error: 'No se puede crear el usuario: El número de cédula debe contener exactamente 10 dígitos numéricos.' 
+      };
+    }
     
     const usuarioExistente = await prisma.user.findFirst({
       where: { OR: [{ username: usernameLimpio }, { cedula: cedulaLimpia }] }
@@ -95,7 +126,8 @@ export async function crearUsuarioAction(data: {
         cedula: cedulaLimpia,
         password: 'DITCASH_DEFAULT_KEY_123',
         nombre: data.nombreCompleto.toUpperCase(),
-        rol: data.rol,
+        rol: data.rol.toUpperCase(),
+        roleId: data.roleId ? Number(data.roleId) : undefined,
         estado: 'Activo',
         activo: true
       }
@@ -120,6 +152,7 @@ export async function crearUsuarioAction(data: {
     }
 
     revalidatePath('/dashboard/admin/usuarios');
+    revalidatePath('/dashboard/usuarios');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: `Error en el servidor: ${error.message}` };
@@ -130,7 +163,8 @@ export async function getUsuariosAction() {
   try {
     const usuarios = await prisma.user.findMany({
       include: {
-        vendedor: true
+        vendedor: true,
+        role: true
       },
       orderBy: {
         id: 'desc'
@@ -153,7 +187,10 @@ export async function getUsuarioByIdAction(id: number) {
   try {
     const usuario = await prisma.user.findUnique({
       where: { id },
-      include: { vendedor: true }
+      include: { 
+        vendedor: true,
+        role: true 
+      }
     });
 
     if (!usuario) return null;
@@ -170,24 +207,44 @@ export async function getUsuarioByIdAction(id: number) {
   }
 }
 
-export async function actualizarUsuarioAction(id: number, data: any) {
+export async function actualizarUsuarioAction(id: number, data: any, usuarioEjecutorId?: number) {
   try {
+    if (usuarioEjecutorId) {
+      const autorizado = await validarPermisoUsuarioActual(usuarioEjecutorId, 'usuarios', 'editar');
+      if (!autorizado) {
+        return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EDITAR usuarios.' };
+      }
+    }
+
+    const cedulaLimpia = data.cedula ? String(data.cedula).trim() : '';
+    if (cedulaLimpia) {
+      const regexCedula = /^\d{10}$/;
+      if (!regexCedula.test(cedulaLimpia)) {
+        return { 
+          success: false, 
+          error: 'No se puede actualizar: El número de cédula debe contener exactamente 10 dígitos numéricos.' 
+        };
+      }
+    }
+
     const usuarioConVendedor = await prisma.user.findUnique({
       where: { id },
       include: { vendedor: true }
     });
 
     const updateData: any = {
-      cedula: data.cedula,
-      rol: data.rol,
+      cedula: cedulaLimpia || undefined,
+      rol: data.rol ? data.rol.toUpperCase() : undefined,
+      roleId: data.roleId ? Number(data.roleId) : undefined,
       activo: data.activo,
-      nombre: data.nombre.toUpperCase()
+      nombre: data.nombre ? data.nombre.toUpperCase() : undefined
     };
+
     if (usuarioConVendedor?.vendedor) {
       updateData.vendedor = {
         update: {
-          nombre: data.nombre.toUpperCase(),
-          cedula: data.cedula
+          nombre: data.nombre ? data.nombre.toUpperCase() : undefined,
+          cedula: cedulaLimpia || undefined
         }
       };
     }
@@ -198,18 +255,27 @@ export async function actualizarUsuarioAction(id: number, data: any) {
     });
 
     revalidatePath('/dashboard/admin/usuarios');
+    revalidatePath('/dashboard/usuarios');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: `Error de actualización: ${error.message || 'Restricción de base de datos.'}` };
   }
 }
 
-export async function eliminarUsuarioAction(id: number) {
+export async function eliminarUsuarioAction(id: number, usuarioEjecutorId?: number) {
   try {
+    if (usuarioEjecutorId) {
+      const autorizado = await validarPermisoUsuarioActual(usuarioEjecutorId, 'usuarios', 'eliminar');
+      if (!autorizado) {
+        return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para ELIMINAR usuarios.' };
+      }
+    }
+
     await prisma.user.delete({
       where: { id }
     })
     revalidatePath('/dashboard/admin/usuarios')
+    revalidatePath('/dashboard/usuarios')
     return { success: true }
   } catch (error) {
     return { success: false, error: 'No se puede eliminar porque tiene registros asociados' }

@@ -1,10 +1,49 @@
 import { prisma } from '@/lib/prisma'
-import { Fuel, FileSpreadsheet, Calculator, TrendingUp, AlertCircle, Clock } from 'lucide-react'
+import { cookies } from 'next/headers'
+import { Fuel, FileSpreadsheet, Calculator, TrendingUp, AlertCircle, Clock, ShieldAlert } from 'lucide-react'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
 
 export default async function DashboardContabilidad() {
+  const cookieStore = await cookies()
+  const userIdRaw = cookieStore.get('user_id')?.value
+
+  let permisosSesion: PermisoModulo[] = []
+  let rolNombreSesion = 'ADMIN'
+
+  if (userIdRaw) {
+    const usuarioBD = await prisma.user.findUnique({
+      where: { id: parseInt(userIdRaw) },
+      include: { role: true }
+    })
+    if (usuarioBD) {
+      permisosSesion = (usuarioBD.role?.permisos as unknown as PermisoModulo[]) || []
+      rolNombreSesion = usuarioBD.role?.nombre || usuarioBD.rol || 'ADMIN'
+    }
+  }
+
+  const puedeVerContabilidad = tienePermiso(permisosSesion, rolNombreSesion, 'vehiculos_cont', 'ver') ||
+                               tienePermiso(permisosSesion, rolNombreSesion, 'facturas_comb', 'ver')
+
+  if (!puedeVerContabilidad) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-12 flex flex-col items-center justify-center text-[#001F3F]">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center max-w-md">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert size={32} strokeWidth={2.5} />
+          </div>
+          <h2 className="text-xl font-black uppercase italic tracking-tighter">Acceso Denegado</h2>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">
+            Tu rol actual no dispone de permisos para visualizar la auditoría contable.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const inicioMes = new Date()
   inicioMes.setDate(1)
   inicioMes.setHours(0, 0, 0, 0)
+
   const [
     gastoMesAggregate,
     facturasPorValidarCount,
@@ -37,8 +76,6 @@ export default async function DashboardContabilidad() {
       }
     })
   ])
-
-  // 3. Formatear valores
   const totalGastoMes = gastoMesAggregate._sum.precioTotal || 0
   const totalCreditoEstaciones = creditoGasolinerasAggregate._sum.montoActual || 0
 
@@ -84,6 +121,7 @@ export default async function DashboardContabilidad() {
           Auditoría de egresos, conciliación fiscal y gestión de combustible Ditec
         </p>
       </header>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {kpisFinancieros.map((kpi, idx) => {
           const Icon = kpi.icon
@@ -100,6 +138,7 @@ export default async function DashboardContabilidad() {
           )
         })}
       </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
           <h3 className="font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2">
@@ -141,6 +180,7 @@ export default async function DashboardContabilidad() {
             </div>
           )}
         </div>
+
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
           <h3 className="font-black text-xs uppercase tracking-widest mb-6 flex items-center gap-2">
             <TrendingUp size={14} className="text-[#FFB800]" /> Resumen de Conciliación
@@ -161,7 +201,6 @@ export default async function DashboardContabilidad() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   )

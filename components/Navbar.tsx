@@ -13,10 +13,10 @@ export default function Navbar({ esCliente = false, clienteCedula = null }: Navb
   const pathname = usePathname();
   const router = useRouter();
 
-  const esRutaVendedor = pathname.startsWith('/vendedor') || pathname.startsWith('/admin');
+  const esRutaVendedor = pathname.startsWith('/vendedor') || pathname.startsWith('/admin') || pathname.startsWith('/dashboard');
 
   const handleSalirPortalCliente = () => {
-    document.cookie = "user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax;";
     router.push('/');
     router.refresh();
   };
@@ -48,8 +48,9 @@ export default function Navbar({ esCliente = false, clienteCedula = null }: Navb
             {esCliente ? (
               <div className="flex items-center gap-2 sm:gap-4 pl-2 sm:pl-4 border-l border-slate-100">
                 <button 
+                  type="button"
                   onClick={handleSalirPortalCliente}
-                  className="bg-red-50 text-red-600 border border-red-100 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm active:scale-95"
+                  className="bg-red-50 text-red-600 border border-red-100 px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
                   Salir del Portal
                 </button>

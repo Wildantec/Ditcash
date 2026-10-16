@@ -1,10 +1,44 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
+import { tienePermiso, PermisoModulo } from '@/lib/permisos';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('user_id')?.value;
+
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, message: 'No autenticado. Inicie sesión.' },
+        { status: 401 }
+      );
+    }
+
+    const usuario = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: { role: true }
+    });
+
+    if (!usuario) {
+      return NextResponse.json(
+        { success: false, message: 'Usuario no encontrado.' },
+        { status: 401 }
+      );
+    }
+
+    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || [];
+    const rolNombre = usuario.role?.nombre || usuario.rol;
+    const puedeVerBodegas = tienePermiso(permisos, rolNombre, 'bodegas', 'ver');
+
+    if (!puedeVerBodegas) {
+      return NextResponse.json(
+        { success: false, message: 'Acceso Denegado: Tu rol no tiene permisos para ver las bodegas.' },
+        { status: 403 }
+      );
+    }
     const API_BASE = "https://grupoaraujos.cloud/api/v1";
     
     const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
@@ -47,6 +81,7 @@ export async function GET() {
     });
 
     return NextResponse.json({ success: true, data: consolidadas });
+
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }

@@ -1,10 +1,37 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
+import { tienePermiso, PermisoModulo } from '@/lib/permisos';
+
 export const dynamic = 'force-dynamic';
 
 const dataDir = path.join(process.cwd(), 'data');
 const rutaArchivo = path.join(dataDir, 'permisos.json');
+
+// Helper interno para validar la sesión y permisos usando cookies
+async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
+  try {
+    const cookieStore = await cookies();
+    const userId = cookieStore.get('user_id')?.value;
+    if (!userId) return false;
+
+    const usuario = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: { role: true }
+    });
+
+    if (!usuario) return false;
+
+    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || [];
+    const rolNombre = usuario.role?.nombre || usuario.rol;
+
+    return tienePermiso(permisos, rolNombre, moduloId, accion);
+  } catch (error) {
+    return false;
+  }
+}
 
 const inicializarArchivo = () => {
   try {
@@ -19,8 +46,17 @@ const inicializarArchivo = () => {
   }
 };
 
+// 🛡️ GET: Obtener la matriz de permisos guardada
 export async function GET() {
   try {
+    const autorizado = await validarAccionSesion('usuarios', 'ver') || await validarAccionSesion('roles', 'ver');
+    if (!autorizado) {
+      return NextResponse.json(
+        { success: false, message: 'Acceso Denegado: Tu rol no tiene permisos para consultar la matriz de permisos.' },
+        { status: 403 }
+      );
+    }
+
     inicializarArchivo();
     if (!fs.existsSync(rutaArchivo)) {
       return NextResponse.json({ success: true, data: [] });
@@ -33,8 +69,17 @@ export async function GET() {
   }
 }
 
+// 🛡️ POST: Guardar o actualizar la matriz de permisos de un rol
 export async function POST(request: Request) {
   try {
+    const autorizado = await validarAccionSesion('usuarios', 'editar') || await validarAccionSesion('roles', 'editar');
+    if (!autorizado) {
+      return NextResponse.json(
+        { success: false, message: 'Acceso Denegado: Tu rol no tiene permisos para MODIFICAR la matriz de permisos.' },
+        { status: 403 }
+      );
+    }
+
     inicializarArchivo();
     const body = await request.json();
     

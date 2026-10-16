@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { registrarCierreRutaDiario, registrarInicioJornada } from '@/app/actions/combustible'
-import { Navigation, Gauge, AlertTriangle, Loader2 } from 'lucide-react'
+import { Navigation, AlertTriangle, Loader2 } from 'lucide-react'
 import Swal from 'sweetalert2'
 
 interface VistaMovilProps {
@@ -13,11 +13,17 @@ interface VistaMovilProps {
   kmSugerido: number
 }
 
-export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaInicial, placaSugerida, kmSugerido }: VistaMovilProps) {
-  const [rutaAbierta, setRutaAbierta] = useState(rutaAbiertaInicial)
+export default function VistaMovilRutaClient({ 
+  userId, 
+  vehiculos = [], 
+  rutaAbiertaInicial, 
+  placaSugerida, 
+  kmSugerido 
+}: VistaMovilProps) {
+  const [rutaAbierta, setRutaAbierta] = useState<any>(rutaAbiertaInicial)
   const [loading, setLoading] = useState(false)
   const [placa, setPlaca] = useState(rutaAbiertaInicial ? rutaAbiertaInicial.placaCarro : placaSugerida)
-  const [kmTablero, setKmTablero] = useState(rutaAbiertaInicial ? '' : kmSugerido.toString())
+  const [kmTablero, setKmTablero] = useState(rutaAbiertaInicial ? '' : (kmSugerido || 0).toString())
 
   function rutaAbiertaAnterior() {
     return !!rutaAbierta
@@ -26,34 +32,46 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
   const handleManejoJornada = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-
-    // 1. ABRIR JORNADA (Matutina - Registro Manual)
     if (!rutaAbiertaAnterior()) {
+      const kmNum = parseFloat(kmTablero)
+      if (isNaN(kmNum) || kmNum <= 0) {
+        Swal.fire('Kilometraje Inválido', 'Por favor ingresa una marcación válida del tablero.', 'error')
+        setLoading(false)
+        return
+      }
+
       const res = await registrarInicioJornada({
         userId,
         placaCarro: placa,
-        kmInicial: parseFloat(kmTablero)
+        kmInicial: kmNum
       })
 
       if (res.success) {
+        setRutaAbierta({
+          placaCarro: placa,
+          kmInicial: kmNum,
+          fechaInicio: new Date()
+        })
+        setKmTablero('')
+        setLoading(false)
+
         Swal.fire({
           title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">¡RUTA INICIALIZADA!</span>',
           text: 'Buen viaje. Registra tu kilometraje final al retornar a la empresa.',
           icon: 'success',
           confirmButtonColor: '#001F3F'
-        }).then(() => { window.location.reload() })
+        })
       } else {
-        Swal.fire('Error', res.error, 'error')
+        Swal.fire('Error', res.error || 'No se pudo iniciar la ruta.', 'error')
         setLoading(false)
       }
     } 
-    // 2. CERRAR JORNADA (Vespertina - Registro Manual)
     else {
       const carroSeleccionado = vehiculos.find(v => v.placa === rutaAbierta.placaCarro)
-      const kmInicialDeLaManana = carroSeleccionado?.kmActual || 0
+      const kmInicialDeLaManana = rutaAbierta.kmInicial ?? carroSeleccionado?.kmActual ?? 0
       const kmFinalDigitado = parseFloat(kmTablero)
 
-      if (kmFinalDigitado <= kmInicialDeLaManana) {
+      if (isNaN(kmFinalDigitado) || kmFinalDigitado <= kmInicialDeLaManana) {
         Swal.fire({
           title: '<span style="font-size:14px; font-weight:bold; color:#001F3F;">VERIFICAR TABLERO</span>',
           text: `El kilometraje de cierre no puede ser menor o igual al de la mañana (${kmInicialDeLaManana.toLocaleString()} KM).`,
@@ -63,8 +81,6 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
         setLoading(false)
         return
       }
-
-      // Calculamos la diferencia neta de kilómetros recorridos en el día
       const kmRecorridosNetos = kmFinalDigitado - kmInicialDeLaManana
 
       const res = await registrarCierreRutaDiario({
@@ -74,14 +90,18 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
       })
 
       if (res.success) {
+        setRutaAbierta(null)
+        setKmTablero(kmFinalDigitado.toString())
+        setLoading(false)
+
         Swal.fire({
           title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">¡JORNADA COMPLETADA!</span>',
           text: `Kilómetros del día guardados: ${kmRecorridosNetos.toLocaleString()} KM.`,
           icon: 'success',
           confirmButtonColor: '#001F3F'
-        }).then(() => { window.location.reload() })
+        })
       } else {
-        Swal.fire('Error', res.error, 'error')
+        Swal.fire('Error', res.error || 'No se pudo cerrar la ruta.', 'error')
         setLoading(false)
       }
     }
@@ -107,7 +127,9 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
             <AlertTriangle className="text-rose-500 flex-shrink-0 mt-0.5" size={16} />
             <div>
               <p className="text-[11px] font-black uppercase text-rose-700 tracking-wide">Jornada Activa en Curso</p>
-              <p className="text-[10px] text-rose-600 font-bold mt-0.5">Estás manejando la unidad de placa <span className="font-mono font-black underline">{rutaAbierta.placaCarro}</span>. Ingresa los kilómetros actuales del tablero para liberar el carro.</p>
+              <p className="text-[10px] text-rose-600 font-bold mt-0.5">
+                Estás manejando la unidad de placa <span className="font-mono font-black underline">{rutaAbierta.placaCarro}</span>. Ingresa los kilómetros actuales del tablero para liberar el carro.
+              </p>
             </div>
           </div>
         )}
@@ -129,7 +151,7 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
                 <option value="">-- SELECCIONE SU PLACA --</option>
                 {vehiculos.map((v) => (
                   <option key={v.id} value={v.placa}>
-                    {v.placa} - {v.marcaModelo}
+                    {v.placa} {v.marcaModelo ? `- ${v.marcaModelo}` : ''}
                   </option>
                 ))}
               </select>
@@ -159,6 +181,7 @@ export default function VistaMovilRutaClient({ userId, vehiculos, rutaAbiertaIni
 
           <div className="pt-4">
             <button
+              type="submit"
               disabled={loading || !placa}
               className={`w-full text-white px-8 py-4 rounded-[1.6rem] font-black text-[11px] uppercase tracking-widest shadow-md transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-40 active:scale-95 ${
                 rutaAbiertaAnterior() 

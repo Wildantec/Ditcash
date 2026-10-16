@@ -2,6 +2,8 @@
 
 import { prisma } from '@/lib/prisma'
 import * as ExcelJS from 'exceljs'
+import { cookies } from 'next/headers'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
 
 interface FiltrosEstaciones {
   gasolineraNombre?: string
@@ -9,8 +11,35 @@ interface FiltrosEstaciones {
   fechaHasta?: string
 }
 
+async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
+  try {
+    const cookieStore = await cookies()
+    const userId = cookieStore.get('user_id')?.value
+    if (!userId) return false
+
+    const usuario = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: { role: true }
+    })
+
+    if (!usuario) return false
+
+    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
+    const rolNombre = usuario.role?.nombre || usuario.rol
+
+    return tienePermiso(permisos, rolNombre, moduloId, accion)
+  } catch (error) {
+    return false
+  }
+}
+
 export async function exportarKardexEstacionesExcel(filtros: FiltrosEstaciones) {
   try {
+    const autorizado = await validarAccionSesion('estaciones', 'ver') || await validarAccionSesion('vehiculos_cont', 'ver')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EXPORTAR reportes de estaciones.' }
+    }
+
     const listaVendedoresDb = await prisma.user.findMany({
       include: {
         asignacionesVehiculo: {
@@ -35,7 +64,6 @@ export async function exportarKardexEstacionesExcel(filtros: FiltrosEstaciones) 
     let poolMovimientos: any[] = []
 
     gasolinerasDb.forEach((g: any) => {
-      // 1. MAPEAMOS LAS ACREDITACIONES CON SU MARCA DE TIEMPO COMPLETA
       if (Number(g.montoRecarga || 0) > 0) {
         poolMovimientos.push({
           id: `ACRED-${g.id}`,
@@ -50,8 +78,6 @@ export async function exportarKardexEstacionesExcel(filtros: FiltrosEstaciones) 
           esConvenio: true
         })
       }
-
-      // 2. MAPEAMOS LOS CONSUMOS CON SU MARCA DE TIEMPO COMPLETA
       const consumos = g.registrosCombustible || []
       consumos.forEach((c: any) => {
         const maestroVendedor = listaVendedoresDb.find(v => Number(v.id) === Number(c.userId))
@@ -73,7 +99,6 @@ export async function exportarKardexEstacionesExcel(filtros: FiltrosEstaciones) 
       })
     })
 
-    // 3. ORDEN CONTABLE ASCENDENTE PARA CALCULAR (Del más antiguo al más nuevo)
     poolMovimientos.sort((a, b) => {
       const tiempoA = new Date(a.createdAt).getTime()
       const tiempoB = new Date(b.createdAt).getTime()
@@ -82,13 +107,11 @@ export async function exportarKardexEstacionesExcel(filtros: FiltrosEstaciones) 
         return tiempoA - tiempoB
       }
       
-      // Desempate de mismo milisegundo: Acreditaciones van primero
       const esAcredA = a.id.startsWith('ACRED-') ? 1 : 0
       const esAcredB = b.id.startsWith('ACRED-') ? 1 : 0
       return esAcredB - esAcredA
     })
 
-    // 4. CALCULO LINEAL DEL SALDO SEGREGANDO POR ESTACIÓN DE SERVICIO (Igual a la web)
     const acumuladores: Record<string, number> = {}
     let movimientosCalculados = poolMovimientos.map((m) => {
       const estacion = String(m.nombreEstacion).toUpperCase().trim()
@@ -106,13 +129,11 @@ export async function exportarKardexEstacionesExcel(filtros: FiltrosEstaciones) 
 
       return {
         ...m,
-        // Si es consumo, ponemos el saldo inicial en la columna de acreditación (informativo)
         acreditacion: esAcreditacion ? acred : saldoInicialDeEstacion,
         saldo: acumuladores[estacion]
       }
     })
 
-    // 5. APLICACIÓN DE FILTROS SEGUROS
     if (filtros.fechaDesde) {
       movimientosCalculados = movimientosCalculados.filter(m => m.fecha >= filtros.fechaDesde!)
     }
@@ -153,7 +174,6 @@ export async function exportarKardexEstacionesExcel(filtros: FiltrosEstaciones) 
         const esAcred = m.id.startsWith('ACRED-')
         const tipoMov = esAcred ? 'ACREDITACIÓN' : (m.esConvenio ? 'CONSUMO CONVENIO' : 'CONSUMO EXTERNO')
         
-        // Sumamos los totales reales para el resumen del Excel (excluyendo el saldo inicial de los consumos)
         if (esAcred) {
           totalAcreditado += m.acreditacion
         }

@@ -1,4 +1,5 @@
 'use client'
+
 import { use, useState, useEffect, useCallback } from 'react'
 import { registrarEvidenciaAction, getMisEvidencias } from '@/app/actions/evidencias'
 import { getCampanaPublica } from '@/app/actions/campanas'
@@ -17,10 +18,14 @@ export default function RegistroEvidenciasForm({ params }: { params: Promise<{ i
   const [preview, setPreview] = useState<string | null>(null)
 
   const cargarDatos = useCallback(async () => {
-    const cp = await getCampanaPublica(campanaId)
-    setCampana(cp)
-    const data = await getMisEvidencias(campanaId)
-    setEvidencias(data)
+    try {
+      const cp = await getCampanaPublica(campanaId)
+      setCampana(cp)
+      const data = await getMisEvidencias(campanaId)
+      setEvidencias(data || [])
+    } catch (error) {
+      console.error("Error al cargar datos de la campaña:", error)
+    }
   }, [campanaId])
 
   useEffect(() => {
@@ -36,8 +41,8 @@ export default function RegistroEvidenciasForm({ params }: { params: Promise<{ i
     const imageFile = formData.get('foto') as File
 
     Swal.fire({
-      title: 'Optimizando Evidencia...',
-      text: 'Comprimiendo imagen para asegurar el envío',
+      title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">OPTIMIZANDO EVIDENCIA</span>',
+      text: 'Comprimiendo imagen para asegurar el envío rápido...',
       allowOutsideClick: false,
       didOpen: () => { Swal.showLoading() }
     })
@@ -57,15 +62,20 @@ export default function RegistroEvidenciasForm({ params }: { params: Promise<{ i
       const result = await registrarEvidenciaAction(formData, campanaId.toString())
 
       if (result.error) {
-        Swal.fire({ icon: 'error', title: 'Error', text: result.error, confirmButtonColor: '#001F3F' })
+        Swal.fire({ 
+          icon: 'error', 
+          title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">INCONVENIENTE</span>', 
+          text: result.error, 
+          confirmButtonColor: '#001F3F' 
+        })
         setLoading(false)
         return
       }
 
       Swal.fire({
         icon: 'success',
-        title: '¡ENVIADO!',
-        text: 'Gestión registrada. El administrador validará el sello de tiempo.',
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">¡EVIDENCIA ENVIADA!</span>',
+        text: 'Gestión registrada correctamente. El administrador validará la muestra fotográfica.',
         confirmButtonColor: '#001F3F'
       })
 
@@ -75,8 +85,13 @@ export default function RegistroEvidenciasForm({ params }: { params: Promise<{ i
       await cargarDatos() 
 
     } catch (error) {
-      console.error("Error al procesar:", error)
-      Swal.fire('Error', 'La imagen es muy pesada. Intenta capturarla nuevamente.', 'error')
+      console.error("Error al procesar la evidencia:", error)
+      Swal.fire({
+        icon: 'error',
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ERROR DE ARCHIVO</span>',
+        text: 'La imagen capturada es muy pesada. Intenta reducir la resolución o capturarla nuevamente.',
+        confirmButtonColor: '#001F3F'
+      })
     } finally {
       setLoading(false)
     }
@@ -103,7 +118,7 @@ export default function RegistroEvidenciasForm({ params }: { params: Promise<{ i
             </span>
           )}
           <Link href="/dashboard">
-            <button className="bg-slate-100 text-[#001F3F] p-2.5 rounded-xl hover:bg-slate-200 transition-colors">
+            <button className="bg-slate-100 text-[#001F3F] p-2.5 rounded-xl hover:bg-slate-200 transition-colors" title="Regresar al Panel">
               <ArrowLeft size={16} strokeWidth={2.5} />
             </button>
           </Link>

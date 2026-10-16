@@ -12,7 +12,7 @@ export async function loginAction(formData: FormData) {
   const password = formData.get('password') as string
   let urlRedireccion: string | null = null
 
-if (cedula === '1755221270' && password === 'admin123') {
+  if (cedula === '1755221270' && password === 'admin123') {
     const cookieStore = await cookies()
     cookieStore.set('user_id', '1', { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 })
     cookieStore.set('user_role', 'ADMIN', { path: '/', httpOnly: false, maxAge: 60 * 60 * 24 })
@@ -21,7 +21,8 @@ if (cedula === '1755221270' && password === 'admin123') {
 
   try {
     const user = await prisma.user.findUnique({
-      where: { cedula: cedula }
+      where: { cedula: cedula },
+      include: { role: true }
     })
 
     if (!user || user.rol === 'CLIENTE') {
@@ -42,7 +43,9 @@ if (cedula === '1755221270' && password === 'admin123') {
       maxAge: 60 * 60 * 24
     })
 
-    cookieStore.set('user_role', user.rol, {
+    const nombreRolGuardar = user.role?.nombre || user.rol || 'ADMIN'
+
+    cookieStore.set('user_role', nombreRolGuardar, {
       path: '/',
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',

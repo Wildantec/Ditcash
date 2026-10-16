@@ -2,6 +2,30 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+
+async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
+  try {
+    const cookieStore = await cookies()
+    const userId = cookieStore.get('user_id')?.value
+    if (!userId) return false
+
+    const usuario = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: { role: true }
+    })
+
+    if (!usuario) return false
+
+    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
+    const rolNombre = usuario.role?.nombre || usuario.rol
+
+    return tienePermiso(permisos, rolNombre, moduloId, accion)
+  } catch (error) {
+    return false
+  }
+}
 
 export async function registrarCierreRutaDiario(data: {
   userId: number
@@ -9,6 +33,11 @@ export async function registrarCierreRutaDiario(data: {
   kmRecorridos: number
 }) {
   try {
+    const autorizado = await validarAccionSesion('vehiculos', 'crear')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR cierre de rutas.' }
+    }
+
     const placaNormalizada = data.placaCarro.toUpperCase().trim()
 
     const vehiculo = await prisma.vehiculo.findUnique({
@@ -78,6 +107,12 @@ export async function registrarFacturaCombustible(data: {
     if (data.id) {
       return await editarFacturaCombustibleAction(data.id, data);
     }
+
+    const autorizado = await validarAccionSesion('facturas_comb', 'crear')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR facturas de combustible.' }
+    }
+
     let vehiculo = await prisma.vehiculo.findFirst();
     if (!vehiculo) {
       vehiculo = await prisma.vehiculo.create({
@@ -196,6 +231,11 @@ export async function crearVehiculoAction(data: {
   userId?: number 
 }) {
   try {
+    const autorizado = await validarAccionSesion('vehiculos', 'crear')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para CREAR vehículos.' }
+    }
+
     const placaNormalizada = data.placa.toUpperCase().trim()
     const existente = await prisma.vehiculo.findUnique({ where: { placa: placaNormalizada } })
     if (existente) return { success: false, error: 'Esta placa ya está registrada.' }
@@ -252,6 +292,11 @@ export async function registrarMantenimientoAction(data: {
   descripcion: string;
 }) {
   try {
+    const autorizado = await validarAccionSesion('vehiculos', 'crear')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR mantenimientos.' }
+    }
+
     const vehiculo = await prisma.vehiculo.findUnique({ 
       where: { placa: data.placa },
       include: { asignaciones: { where: { fechaFin: null }, include: { user: true } } }
@@ -267,6 +312,7 @@ export async function registrarMantenimientoAction(data: {
         error: `Error de Tablero: El kilometraje de llegada ingresado (${data.kmMantenimiento.toLocaleString()} KM) no puede ser menor al kilometraje inicial registrado anteriormente (${kmInicialPeriodo.toLocaleString()} KM).` 
       }
     }
+
     await prisma.vehiculo.update({
       where: { id: vehiculo.id },
       data: {
@@ -312,6 +358,11 @@ export async function editarVehiculoAction(
   }
 ) {
   try {
+    const autorizado = await validarAccionSesion('vehiculos', 'editar')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EDITAR vehículos.' }
+    }
+
     const placaNormalizada = data.placa.toUpperCase().trim()
     const vehiculoBase = await prisma.vehiculo.findUnique({ 
       where: { id },
@@ -374,8 +425,14 @@ export async function editarVehiculoAction(
   }
 }
 
+// 🛡️ Eliminar Vehículo (Requiere permiso 'eliminar' en módulo 'vehiculos')
 export async function eliminarVehiculoAction(id: number) {
   try {
+    const autorizado = await validarAccionSesion('vehiculos', 'eliminar')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para ELIMINAR vehículos.' }
+    }
+
     await prisma.vehiculo.delete({ where: { id } })
     revalidatePath('/dashboard/combustible/mantenimiento')
     return { success: true }
@@ -392,6 +449,11 @@ export async function crearGasolineraAction(data: {
   createdAt?: Date;
 }) {
   try {
+    const autorizado = await validarAccionSesion('estaciones', 'crear')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para CREAR estaciones de combustible.' }
+    }
+
     const totalRecarga = data.tieneConvenio ? (data.montoRecarga ?? 0) : 0
     await prisma.gasolinera.create({
       data: {
@@ -421,6 +483,11 @@ export async function editarGasolineraAction(
   }
 ) {
   try {
+    const autorizado = await validarAccionSesion('estaciones', 'editar')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EDITAR estaciones de combustible.' }
+    }
+
     const totalRecarga = payload.tieneConvenio ? (payload.montoRecarga ?? 0) : 0
     
     await prisma.gasolinera.update({
@@ -443,6 +510,11 @@ export async function editarGasolineraAction(
 
 export async function eliminarGasolineraAction(id: number) {
   try {
+    const autorizado = await validarAccionSesion('estaciones', 'eliminar')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para ELIMINAR estaciones de combustible.' }
+    }
+
     await prisma.gasolinera.delete({ where: { id } })
     revalidatePath('/dashboard/combustible/estaciones')
     return { success: true }
@@ -450,12 +522,27 @@ export async function eliminarGasolineraAction(id: number) {
     return { success: false, error: 'No se puede eliminar la estación porque contiene historiales vinculados.' }
   }
 }
-
 export async function editarFacturaCombustibleAction(id: number, data: any) {
   try {
+    const autorizado = await validarAccionSesion('facturas_comb', 'editar')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EDITAR facturas de combustible.' }
+    }
+
     const facturaVieja = await prisma.registroCombustible.findUnique({ where: { id: Number(id) } });
     if (!facturaVieja) return { success: false, error: 'El registro no existe.' };
-    if (!facturaVieja.fueraDeConvenio) {
+
+    // 1. Resolver el nuevo UserId / Vendedor si cambió
+    let finalUserId = data.userId;
+    if (data.chofer) {
+      const usuarioEncontrado = await prisma.user.findFirst({
+        where: { nombre: { contains: data.chofer.trim() } }
+      });
+      if (usuarioEncontrado) finalUserId = usuarioEncontrado.id;
+    }
+
+    // 2. Reintegrar temporalmente el monto anterior para calcular disponibilidades reales
+    if (!facturaVieja.fueraDeConvenio && facturaVieja.gasolineraId) {
       await prisma.gasolinera.update({
         where: { id: facturaVieja.gasolineraId },
         data: { montoActual: { increment: facturaVieja.precioTotal } }
@@ -475,26 +562,47 @@ export async function editarFacturaCombustibleAction(id: number, data: any) {
       }
       finalGasolineraId = gasolineraExterna.id;
     } else {
-      const gasolinera = await prisma.gasolinera.findUnique({ where: { id: data.gasolineraId } });
-      if (!gasolinera) return { success: false, error: 'Estación no encontrada.' };
-      
-      if (gasolinera.montoActual < data.precioTotal) {
-        await prisma.gasolinera.update({ 
-          where: { id: facturaVieja.gasolineraId }, 
-          data: { montoActual: { decrement: facturaVieja.precioTotal } } 
-        });
-        return { success: false, error: 'Fondos insuficientes en el convenio para cubrir la modificación.' };
+      const gasolineraReferencia = await prisma.gasolinera.findUnique({ where: { id: data.gasolineraId } });
+      if (!gasolineraReferencia) {
+        // Revertir reembolso si falla
+        if (!facturaVieja.fueraDeConvenio && facturaVieja.gasolineraId) {
+          await prisma.gasolinera.update({
+            where: { id: facturaVieja.gasolineraId },
+            data: { montoActual: { decrement: facturaVieja.precioTotal } }
+          });
+        }
+        return { success: false, error: 'Estación de convenio no encontrada.' };
+      }
+
+      // Evaluar el saldo consolidado de la estación
+      const todasLasAcreditaciones = await prisma.gasolinera.findMany({
+        where: { nombre: gasolineraReferencia.nombre, tieneConvenio: true }
+      });
+
+      const saldoConsolidado = todasLasAcreditaciones.reduce((sum, item) => sum + Number(item.montoActual || 0), 0);
+
+      if (saldoConsolidado < data.precioTotal) {
+        // Revertir el saldo devuelto originalmente al fallar la validación
+        if (!facturaVieja.fueraDeConvenio && facturaVieja.gasolineraId) {
+          await prisma.gasolinera.update({ 
+            where: { id: facturaVieja.gasolineraId }, 
+            data: { montoActual: { decrement: facturaVieja.precioTotal } } 
+          });
+        }
+        return { success: false, error: `Fondos insuficientes. El saldo disponible consolidado ($${saldoConsolidado.toFixed(2)}) no cubre el monto de $${Number(data.precioTotal).toFixed(2)}.` };
       }
     }
 
-    let numeracionFinal = data.numFactura.trim().toUpperCase();
+    let numeracionFinal = data.numFactura?.trim().toUpperCase();
     if (!numeracionFinal) {
       numeracionFinal = facturaVieja.numFactura;
     }
 
+    // 3. ACTUALIZAR REGISTRO (INCLUYENDO userId Y EL CHOFER)
     await prisma.registroCombustible.update({
       where: { id: Number(id) },
       data: {
+        userId: finalUserId, // 👈 AHORA SÍ SE GUARDA EL NUEVO VENDEDOR
         gasolineraId: finalGasolineraId,
         precioTotal: data.precioTotal,
         numFactura: numeracionFinal,
@@ -504,11 +612,35 @@ export async function editarFacturaCombustibleAction(id: number, data: any) {
       }
     });
 
+    // 4. Aplicar el descuento del nuevo monto en las bolsas correspondientes
     if (!fueraDeConvenio) {
-      await prisma.gasolinera.update({
-        where: { id: finalGasolineraId },
-        data: { montoActual: { decrement: data.precioTotal } }
-      });
+      const estacionBase = await prisma.gasolinera.findUnique({ where: { id: finalGasolineraId } });
+      if (estacionBase) {
+        const bolsasConSaldo = await prisma.gasolinera.findMany({
+          where: { nombre: estacionBase.nombre, tieneConvenio: true, montoActual: { gt: 0 } },
+          orderBy: { createdAt: 'asc' } 
+        });
+
+        let saldoADescontar = data.precioTotal;
+
+        for (const bolsa of bolsasConSaldo) {
+          if (saldoADescontar <= 0) break;
+
+          if (bolsa.montoActual >= saldoADescontar) {
+            await prisma.gasolinera.update({
+              where: { id: bolsa.id },
+              data: { montoActual: { decrement: saldoADescontar } }
+            });
+            saldoADescontar = 0;
+          } else {
+            saldoADescontar -= bolsa.montoActual;
+            await prisma.gasolinera.update({
+              where: { id: bolsa.id },
+              data: { montoActual: 0 }
+            });
+          }
+        }
+      }
     }
 
     revalidatePath('/dashboard/combustible/facturas');
@@ -521,6 +653,11 @@ export async function editarFacturaCombustibleAction(id: number, data: any) {
 
 export async function eliminarFacturaCombustibleAction(id: number) {
   try {
+    const autorizado = await validarAccionSesion('facturas_comb', 'eliminar')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para ELIMINAR facturas de combustible.' }
+    }
+
     const facturaAEliminar = await prisma.registroCombustible.findUnique({ where: { id: Number(id) } });
     if (facturaAEliminar && !facturaAEliminar.fueraDeConvenio) {
       await prisma.gasolinera.update({
@@ -537,9 +674,13 @@ export async function eliminarFacturaCombustibleAction(id: number) {
     return { success: false, error: error.message }
   }
 }
-
 export async function registrarInicioJornada(data: { userId: number; placaCarro: string; kmInicial: number }) {
   try {
+    const autorizado = await validarAccionSesion('vehiculos', 'crear')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR inicios de jornada.' }
+    }
+
     const placaNormalizada = data.placaCarro.toUpperCase().trim()
     const rutaAbierta = await prisma.registroRutaDiaria.findFirst({
       where: {

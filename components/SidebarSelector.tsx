@@ -8,37 +8,31 @@ export default async function SidebarSelector() {
     const userIdRaw = cookieStore.get('user_id')?.value
     if (!userIdRaw) return null
 
-    const userId = parseInt(userIdRaw)
-    if (isNaN(userId)) {
-      return null
-    }
+    const userId = parseInt(userIdRaw, 10)
+    if (isNaN(userId)) return null
 
     const usuarioLocal = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
+      include: { role: true }
     })
 
-    if (!usuarioLocal) {
-      return null
-    }
-    const rolLimpio = (usuarioLocal.rol || 'VENDEDOR').toUpperCase().trim()
+    if (!usuarioLocal) return null
 
-    const rolesPermitidos = [
-      'ADMIN', 
-      'MARKETING', 
-      'VENDEDOR', 
-      'CONTABILIDAD', 
-      'COBRANZAS', 
-      'FACTURACION', 
-      'SERVICIO_TECNICO'
-    ]
+    const permisosDinamicos = Array.isArray(usuarioLocal.role?.permisos)
+      ? (usuarioLocal.role.permisos as any[])
+      : null
 
-    const rolFinal = rolesPermitidos.includes(rolLimpio) 
-      ? rolLimpio 
-      : 'VENDEDOR'
+    const rolLimpio = usuarioLocal.role?.nombre || (usuarioLocal.rol || 'VENDEDOR').toUpperCase().trim()
 
-    return <SidebarDitcash role={rolFinal} />
+    return (
+      <SidebarDitcash 
+        role={rolLimpio} 
+        permisos={permisosDinamicos} 
+      />
+    )
 
   } catch (error) {
+    console.error('Error en SidebarSelector:', error)
     return null
   }
 }

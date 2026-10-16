@@ -1,17 +1,26 @@
 'use client'
+
 import { useState, useEffect, useCallback } from 'react'
 import { getVendedoresRanking } from '@/app/actions/vendedores'
 import { getEvidenciasByVendedor, revisarEvidenciaAction, eliminarEvidenciaAction } from '@/app/actions/evidencias'
 import Swal from 'sweetalert2'
-import { Search, ArrowLeft, Trash2, Check, X } from 'lucide-react' 
+import { Search, ArrowLeft, Trash2, Check, X, ShieldAlert } from 'lucide-react'
 
-export default function GestionVendedoresConAuditoria() {
+interface GestionVendedoresConAuditoriaProps {
+  accionesPermitidas?: {
+    ver: boolean;
+    crear: boolean;
+    editar: boolean;
+    eliminar: boolean;
+  }
+}
+
+export default function GestionVendedoresConAuditoria({ accionesPermitidas = { ver: true, crear: true, editar: true, eliminar: true } }: GestionVendedoresConAuditoriaProps) {
   const [vendedores, setVendedores] = useState<any[]>([])
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<any>(null)
   const [evidencias, setEvidencias] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-
-  const inicializar = useCallback(async () => {
+const inicializar = useCallback(async () => {
     try {
       setLoading(true)
       const data = await getVendedoresRanking()
@@ -45,7 +54,7 @@ export default function GestionVendedoresConAuditoria() {
   useEffect(() => { inicializar() }, []) 
   useEffect(() => { cargarEvidencias() }, [cargarEvidencias])
 
-const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
+  const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
     Swal.fire({
       title: `<span style="font-size:15px; font-weight:900; color:#001F3F; text-transform:uppercase; letter-spacing:0.05em;">Visualizador de Auditoría</span>`,
       html: `
@@ -53,7 +62,7 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
           <p style="font-size:11px; text-transform:uppercase; font-weight:bold; color:gray; margin-bottom:15px;">
             Cliente: ${clienteNombre.toUpperCase()}
           </p>
-          <div style="border-radius: 1.5rem; overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); border: 1px solid #f1f5f9; background: #f8fafc; max-height: 60vh; display: flex; items-center; justify-content: center;">
+          <div style="border-radius: 1.5rem; overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); border: 1px solid #f1f5f9; background: #f8fafc; max-height: 60vh; display: flex; align-items: center; justify-content: center;">
             <img src="${url}" style="max-width: 100%; max-height: 60vh; object-fit: contain;" alt="Evidencia Campaña Ditec" />
           </div>
         </div>
@@ -90,6 +99,16 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
   }
 
   const handleRevisar = async (id: number, aprobado: boolean) => {
+    if (!accionesPermitidas.editar) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no tiene permisos para auditar o revisar evidencias.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
     let motivo = ""
     if (!aprobado) {
       const { value: text, isConfirmed } = await Swal.fire({
@@ -111,10 +130,22 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
     if (res.success) {
       await cargarEvidencias()
       await inicializar() 
+    } else {
+      Swal.fire('Inconveniente', res.error || 'No se pudo procesar la auditoría', 'error')
     }
   }
 
   const handleEliminar = async (id: number) => {
+    if (!accionesPermitidas.eliminar) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no tiene permisos para eliminar registros de evidencia.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F'
+      })
+      return
+    }
+
     const confirm = await Swal.fire({
       title: '¿Eliminar registro?',
       text: 'Esta acción borrará la foto de la base de datos.',
@@ -129,8 +160,26 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
       if (res.success) {
         await cargarEvidencias()
         await inicializar()
+      } else {
+        Swal.fire('Error', res.error || 'No se pudo eliminar el registro', 'error')
       }
     }
+  }
+
+  if (!accionesPermitidas.ver) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-12 flex flex-col items-center justify-center text-[#001F3F]">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center max-w-md">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert size={32} strokeWidth={2.5} />
+          </div>
+          <h2 className="text-xl font-black uppercase italic tracking-tighter">Acceso Denegado</h2>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">
+            Tu rol no dispone de permisos para acceder a la auditoría de vendedores.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (loading && vendedores.length === 0) return (
@@ -175,7 +224,9 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
                             {pendientes.length} PENDIENTES
                           </div>
                         ) : (
-                          <div className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">AL DÍA ✔</div>
+                          <div className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-300 uppercase tracking-widest">
+                            AL DÍA <Check size={12} strokeWidth={3} className="text-emerald-500" />
+                          </div>
                         )}
                       </td>
                       <td className="px-10 py-6 text-center font-black italic">${v.puntosAcumulados.toFixed(2)}</td>
@@ -214,7 +265,9 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
                          {pendientes.length} Pend.
                        </span>
                      ) : (
-                       <span className="text-[7px] font-bold text-slate-300 uppercase">Al día ✔</span>
+                       <span className="inline-flex items-center gap-1 text-[7px] font-bold text-slate-300 uppercase">
+                         Al día <Check size={10} strokeWidth={3} className="text-emerald-500" />
+                       </span>
                      )}
                      <button 
                        onClick={() => setVendedorSeleccionado(v)} 
@@ -234,7 +287,7 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
               <div className="flex items-center gap-4 w-full md:w-auto">
                  <button 
                    onClick={() => setVendedorSeleccionado(null)} 
-                   className="w-10 h-10 bg-[#001F3F] text-white rounded-xl flex items-center justify-center hover:bg-[#FFB800] transition-colors shadow-lg font-bold flex justify-center items-center"
+                   className="w-10 h-10 bg-[#001F3F] text-white rounded-xl flex items-center justify-center hover:bg-[#FFB800] hover:text-[#001F3F] transition-colors shadow-lg font-bold"
                  >
                    <ArrowLeft size={16} strokeWidth={2.5} />
                  </button>
@@ -249,8 +302,6 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
               {evidencias.map((evi: any) => (
                 <div key={evi.id} className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-lg flex flex-col group transition-all">
-                  
-                  {/* 🟢 SE AÑADIÓ ONCLICK PARA ZOOM Y SE DEJA EL ELIMINAR LIMPIO */}
                   <div 
                     onClick={() => expandirEvidenciaAuditoria(evi.urlImagen, evi.clienteNombre)}
                     className="aspect-square bg-slate-100 relative overflow-hidden cursor-zoom-in"
@@ -258,7 +309,7 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
                     <img src={evi.urlImagen} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="evidencia" />
                     
                     <div className="absolute top-3 right-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                        {/* 🟢 Botón de descarga removido con éxito de la botonera flotante superior */}
+                      {accionesPermitidas.eliminar && (
                         <button 
                           onClick={() => handleEliminar(evi.id)} 
                           title="Eliminar"
@@ -266,6 +317,7 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
                         >
                           <Trash2 size={14} />
                         </button>
+                      )}
                     </div>
 
                     <div className={`absolute top-3 left-3 text-[7px] font-black px-2 py-1 rounded-md uppercase text-white shadow-md ${evi.estado === 'pendiente' ? 'bg-orange-500 animate-pulse' : evi.estado === 'aprobado' ? 'bg-green-500' : 'bg-red-500'}`}>
@@ -288,11 +340,11 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
 
                     {evi.estado === 'aprobado' && (
                        <p className="text-[8px] text-green-500 font-black uppercase tracking-widest mb-4 italic">
-                        ✓ Acreditado +${Number(evi.valorPagado || 0).toFixed(2)}
+                         ✓ Acreditado +${Number(evi.valorPagado || 0).toFixed(2)}
                        </p>
                     )}
 
-                    {evi.estado === 'pendiente' && (
+                    {evi.estado === 'pendiente' && accionesPermitidas.editar && (
                       <div className="flex gap-2 mt-auto" onClick={(e) => e.stopPropagation()}>
                         <button 
                           onClick={() => handleRevisar(evi.id, true)} 
@@ -302,7 +354,7 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
                         </button>
                         <button 
                           onClick={() => handleRevisar(evi.id, false)}
-                          className="flex-1 bg-red-50 text-white py-2.5 rounded-xl text-[8px] font-black uppercase shadow-md active:scale-95 transition-all flex justify-center items-center gap-1 hover:bg-red-600"
+                          className="flex-1 bg-red-500 text-white py-2.5 rounded-xl text-[8px] font-black uppercase shadow-md active:scale-95 transition-all flex justify-center items-center gap-1 hover:bg-red-600"
                         >
                           <X size={11} strokeWidth={3} /> Rechazar
                         </button>

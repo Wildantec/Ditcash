@@ -1,8 +1,9 @@
 'use client'
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getHistorialVendedor } from '@/app/actions/evidencias'
-import { Wallet, Search } from 'lucide-react'
+import { Wallet, Search, ShieldAlert } from 'lucide-react'
 
 interface HistorialVendedorProps {
   accionesPermitidas: {
@@ -20,13 +21,33 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
 
   useEffect(() => {
     async function cargarHistorial() {
+      if (!accionesPermitidas.ver) {
+        setLoading(false)
+        return
+      }
       const res = await getHistorialVendedor()
       setDatos(res?.campanas || [])
       setSaldo(res?.saldoDisponible || 0)
       setLoading(false)
     }
     cargarHistorial()
-  }, [])
+  }, [accionesPermitidas.ver])
+
+  if (!accionesPermitidas.ver) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-12 flex flex-col items-center justify-center text-[#001F3F]">
+        <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center max-w-md">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert size={32} strokeWidth={2.5} />
+          </div>
+          <h2 className="text-xl font-black uppercase italic tracking-tighter">Acceso Denegado</h2>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">
+            Tu rol no dispone de permisos para visualizar el historial de campañas.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center font-black text-[#001F3F] text-[11px] uppercase tracking-[0.4em] animate-pulse">
@@ -44,6 +65,7 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
           Rendimiento y ganancias acumuladas en Ditec
         </p>
       </header>
+      
       <div className="mb-8 bg-[#001F3F] text-white p-6 rounded-[2rem] shadow-xl border-b-4 border-[#FFB800] max-w-sm flex items-center justify-between group hover:bg-black transition-all duration-300">
         <div>
           <p className="text-[9px] font-black text-[#FFB800] uppercase tracking-widest mb-1">Mi Billetera Virtual</p>
@@ -55,6 +77,7 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
           <Wallet size={20} strokeWidth={2.5} />
         </div>
       </div>
+
       <div className="hidden lg:block bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -124,6 +147,7 @@ export default function HistorialVendedorPage({ accionesPermitidas }: HistorialV
           </table>
         </div>
       </div>
+
       <div className="lg:hidden space-y-4">
         {datos.length > 0 ? datos.map((item) => (
           <div key={item.id} className="bg-white p-6 rounded-[2rem] shadow-lg border border-slate-100 flex flex-col gap-4">

@@ -1,11 +1,18 @@
 'use client'
+
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { getCampanaById, updateCampana } from '@/app/actions/campanas'
 import Swal from 'sweetalert2'
 import { Rocket, Loader2 } from 'lucide-react'
+import { tienePermiso } from '@/lib/permisos'
 
-export default function EditarCampanaPage({ params }: { params: Promise<{ id: string }> }) {
+interface EditarCampanaProps {
+  params: Promise<{ id: string }>
+  usuarioSesion?: any
+}
+
+export default function EditarCampanaPage({ params, usuarioSesion }: EditarCampanaProps) {
   const router = useRouter()
   const resolvedParams = use(params)
   const id = parseInt(resolvedParams.id)
@@ -21,17 +28,22 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
     valor: '2.00'
   })
 
+
+  const permisosSesion = usuarioSesion?.role?.permisos || usuarioSesion?.permisos || []
+  const rolNombreSesion = usuarioSesion?.role?.nombre || usuarioSesion?.rol || 'ADMIN'
+  const puedeEditar = tienePermiso(permisosSesion, rolNombreSesion, 'campanas', 'editar')
+
   useEffect(() => {
     async function cargarDatos() {
       const campana = await getCampanaById(id)
       if (campana) {
         setDatos({
-          nombre: campana.nombre,
+          nombre: campana.nombre || '',
           detalle: campana.descripcion || '',
-          fecha_inicio: new Date(campana.fechaInicio).toISOString().split('T')[0],
-          fecha_cierre: new Date(campana.fechaFin).toISOString().split('T')[0],
-          estado: campana.activa ? 'Activa' : 'Pausada',
-          valor: campana.valor?.toString() || '2.00'
+          fecha_inicio: campana.fechaInicio ? new Date(campana.fechaInicio).toISOString().split('T')[0] : '',
+          fecha_cierre: campana.fechaFin ? new Date(campana.fechaFin).toISOString().split('T')[0] : '',
+          estado: (campana.activa ?? campana.activo) ? 'Activa' : 'Pausada',
+          valor: (campana.valor ?? campana.puntosOtorgados)?.toString() || '2.00'
         })
       }
       setLoading(false)
@@ -41,6 +53,18 @@ export default function EditarCampanaPage({ params }: { params: Promise<{ id: st
 
   async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    if (!puedeEditar) {
+      Swal.fire({
+        title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">ACCESO DENEGADO</span>',
+        text: 'Tu rol no tiene permisos para EDITAR parámetros de campaña.',
+        icon: 'warning',
+        confirmButtonColor: '#001F3F',
+        confirmButtonText: 'ENTENDIDO'
+      })
+      return
+    }
+
     setUpdating(true)
 
     const res = await updateCampana(id, datos)

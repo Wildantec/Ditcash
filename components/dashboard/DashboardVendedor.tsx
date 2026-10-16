@@ -2,7 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ShieldCheck, Trophy, Medal } from 'lucide-react'
+import { ShieldCheck, Trophy, Medal, AlertTriangle, Camera } from 'lucide-react'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
 
 export default async function DashboardVendedor() {
   const cookieStore = await cookies()
@@ -13,8 +14,15 @@ export default async function DashboardVendedor() {
   const userId = parseInt(userIdRaw)
 
   const usuarioBD = await prisma.user.findUnique({
-    where: { id: userId }
+    where: { id: userId },
+    include: { role: true }
   })
+
+  const permisosSesion = (usuarioBD?.role?.permisos as unknown as PermisoModulo[]) || []
+  const rolNombreSesion = usuarioBD?.role?.nombre || usuarioBD?.rol || 'VENDEDOR'
+
+  const puedeVerPremios = tienePermiso(permisosSesion, rolNombreSesion, 'premios', 'ver')
+  const puedeVerCampanas = tienePermiso(permisosSesion, rolNombreSesion, 'campanas', 'ver')
 
   const vendedor = await prisma.vendedor.findUnique({
     where: { usuarioId: userId }
@@ -32,8 +40,8 @@ export default async function DashboardVendedor() {
     return (
       <div className="min-h-screen bg-[#F4F7FA] flex flex-col items-center justify-center p-6 text-[#001F3F]">
         <div className="bg-white p-10 md:p-14 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center max-w-md space-y-6">
-          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center text-2xl mx-auto shadow-inner">
-            ⚠️
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto shadow-inner">
+            <AlertTriangle size={28} strokeWidth={2.5} />
           </div>
           <div>
             <h3 className="font-black text-lg uppercase italic tracking-tight">Perfil No Detectado</h3>
@@ -62,10 +70,12 @@ export default async function DashboardVendedor() {
   const saldo = Number(vendedor.puntosAcumulados || 0) - Number(vendedor.saldoGastado || 0)
   const totalAprobadas = stats._count.id
   
-  const premios = await prisma.premio.findMany({
-    where: { activo: true },
-    orderBy: { puntos: 'asc' }
-  })
+  const premios = puedeVerPremios 
+    ? await prisma.premio.findMany({
+        where: { activo: true },
+        orderBy: { puntos: 'asc' }
+      })
+    : []
 
   const proximoPremio = premios.find((p: any) => Number(p.puntos) > saldo) || premios[premios.length - 1];
   const metaPremio = proximoPremio ? Number(proximoPremio.puntos) : 100;
@@ -81,10 +91,12 @@ export default async function DashboardVendedor() {
     .sort((a: any, b: any) => b.puntosReales - a.puntosReales)
     .slice(0, 3)
 
-  const campanasActivas = await prisma.campana.findMany({
-    where: { activa: true },
-    orderBy: { fechaInicio: 'desc' }
-  })
+  const campanasActivas = puedeVerCampanas 
+    ? await prisma.campana.findMany({
+        where: { activa: true },
+        orderBy: { fechaInicio: 'desc' }
+      })
+    : []
 
   const nombreRealUsuario = (usuarioBD?.nombre || vendedor.nombre || "Vendedor Ditec").toUpperCase();
 
@@ -120,79 +132,84 @@ export default async function DashboardVendedor() {
           <p className="text-[10px] md:text-xs font-bold uppercase mt-4 opacity-60 italic">{totalAprobadas} Validaciones verificadas</p>
         </div>
         
-        <div className="lg:col-span-7 bg-white rounded-[2rem] md:rounded-[2.5rem] p-8 md:p-10 border border-slate-100 shadow-xl flex flex-col justify-between group">
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-            <div>
-              <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 md:mb-2">Tu siguiente meta</p>
-              <h3 className="text-xl md:text-2xl font-black uppercase italic text-[#001F3F] group-hover:text-[#FFB800] transition-colors leading-tight">
-                {proximoPremio?.nombre || 'Catálogo de Premios'}
-              </h3>
+        {puedeVerPremios && (
+          <div className="lg:col-span-7 bg-white rounded-[2rem] md:rounded-[2.5rem] p-8 md:p-10 border border-slate-100 shadow-xl flex flex-col justify-between group">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+              <div>
+                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 md:mb-2">Tu siguiente meta</p>
+                <h3 className="text-xl md:text-2xl font-black uppercase italic text-[#001F3F] group-hover:text-[#FFB800] transition-colors leading-tight">
+                  {proximoPremio?.nombre || 'Catálogo de Premios'}
+                </h3>
+              </div>
+              <Link href="/dashboard/premios" className="w-full sm:w-auto">
+                <button className="w-full bg-slate-50 text-[#001F3F] p-4 rounded-2xl font-black text-[10px] md:text-xs uppercase hover:bg-[#001F3F] hover:text-white transition-all shadow-sm">
+                  Ver Catálogo ➔
+                </button>
+              </Link>
             </div>
-            <Link href="/dashboard/premios" className="w-full sm:w-auto">
-              <button className="w-full bg-slate-50 text-[#001F3F] p-4 rounded-2xl font-black text-[10px] md:text-xs uppercase hover:bg-[#001F3F] hover:text-white transition-all shadow-sm">
-                Ver Catálogo ➔
-              </button>
-            </Link>
+            
+            <div className="mt-8">
+              <div className="flex justify-between mb-3">
+                <span className="text-[10px] md:text-xs font-black uppercase opacity-40 italic tracking-widest">Progreso del canje</span>
+                <span className="text-[10px] md:text-xs font-black text-[#001F3F]">
+                  ${saldo.toFixed(2)} /${metaPremio.toFixed(2)}
+                </span>
+              </div>
+              <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden p-1">
+                <div 
+                  className="h-full bg-[#001F3F] rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(0,31,63,0.2)]" 
+                  style={{ width: `${progresoPremio}%` }} 
+                />
+              </div>
+            </div>
           </div>
-          
-          <div className="mt-8">
-            <div className="flex justify-between mb-3">
-              <span className="text-[10px] md:text-xs font-black uppercase opacity-40 italic tracking-widest">Progreso del canje</span>
-              <span className="text-[10px] md:text-xs font-black text-[#001F3F]">
-                ${saldo.toFixed(2)} / ${metaPremio.toFixed(2)}
-              </span>
-            </div>
-            <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden p-1">
-              <div 
-                className="h-full bg-[#001F3F] rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(0,31,63,0.2)]" 
-                style={{ width: `${progresoPremio}%` }} 
-              />
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
         <div className="lg:col-span-8 space-y-6 md:space-y-10">
-          <section>
-            <div className="flex items-center gap-4 mb-6 md:mb-8">
-              <div className="w-2 h-8 bg-[#FFB800] rounded-full" />
-              <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Campañas Activas</h3>
-            </div>
-            
-            <div className="grid gap-4 md:gap-6">
-              {campanasActivas.length > 0 ? (
-                campanasActivas.map((c: any) => (
-                  <div key={c.id} className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-center justify-between hover:shadow-2xl transition-all border-l-[12px] border-[#001F3F] gap-6">
-                    <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-center md:text-left">
-                      <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-3xl md:text-4xl shadow-inner shrink-0 relative">
-                        📸
-                        <div className="absolute -top-2 -right-2 bg-[#FFB800] text-[#001F3F] text-[10px] font-black px-2 py-1 rounded-lg shadow-md border border-white">
-                          ${Number(c.valor || 0).toFixed(2)}
+          {puedeVerCampanas && (
+            <section>
+              <div className="flex items-center gap-4 mb-6 md:mb-8">
+                <div className="w-2 h-8 bg-[#FFB800] rounded-full" />
+                <h3 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter">Campañas Activas</h3>
+              </div>
+              
+              <div className="grid gap-4 md:gap-6">
+                {campanasActivas.length > 0 ? (
+                  campanasActivas.map((c: any) => (
+                    <div key={c.id} className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row items-center justify-between hover:shadow-2xl transition-all border-l-[12px] border-[#001F3F] gap-6">
+                      <div className="flex flex-col md:flex-row items-center gap-4 md:gap-8 text-center md:text-left">
+                        <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-[#001F3F] shadow-inner shrink-0 relative">
+                          <Camera size={26} strokeWidth={2} />
+                          <div className="absolute -top-2 -right-2 bg-[#FFB800] text-[#001F3F] text-[10px] font-black px-2 py-1 rounded-lg shadow-md border border-white">
+                            ${Number(c.valor || 0).toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-lg md:text-xl font-black uppercase text-[#001F3F] tracking-tighter">{c.nombre}</h4>
+                          <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-tight mt-1 opacity-80 line-clamp-2">
+                            {c.descripcion || 'Sube tus fotos de evidencias y gana recompensas.'}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex-1">
-                        <h4 className="text-lg md:text-xl font-black uppercase text-[#001F3F] tracking-tighter">{c.nombre}</h4>
-                        <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-tight mt-1 opacity-80 line-clamp-2">
-                          {c.descripcion || 'Sube tus fotos de evidencias y gana recompensas.'}
-                        </p>
-                      </div>
+                      <Link href={`/dashboard/campanas/${c.id}`} className="w-full md:w-auto">
+                        <button className="w-full bg-[#001F3F] text-[#FFB800] px-8 md:px-10 py-4 md:py-5 rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-[0.2em] shadow-lg hover:scale-105 transition-all">
+                          SUBIR EVIDENCIA
+                        </button>
+                      </Link>
                     </div>
-                    <Link href={`/dashboard/campanas/${c.id}`} className="w-full md:w-auto">
-                      <button className="w-full bg-[#001F3F] text-[#FFB800] px-8 md:px-10 py-4 md:py-5 rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-[0.2em] shadow-lg hover:scale-105 transition-all">
-                        SUBIR EVIDENCIA
-                      </button>
-                    </Link>
+                  ))
+                ) : (
+                  <div className="bg-white rounded-[2.5rem] p-16 md:p-20 text-center border-2 border-dashed border-slate-200">
+                      <p className="text-xs font-black uppercase tracking-widest text-slate-300 italic">No hay campañas disponibles actualmente.</p>
                   </div>
-                ))
-              ) : (
-                <div className="bg-white rounded-[2.5rem] p-16 md:p-20 text-center border-2 border-dashed border-slate-200">
-                    <p className="text-xs font-black uppercase tracking-widest text-slate-300 italic">No hay campañas disponibles actualmente.</p>
-                </div>
-              )}
-            </div>
-          </section>
+                )}
+              </div>
+            </section>
+          )}
         </div>
+        
         <div className="lg:col-span-4">
           <div className="bg-white rounded-[2.5rem] md:rounded-[3rem] p-8 md:p-10 shadow-xl border border-slate-50 lg:sticky lg:top-10">
             <h3 className="text-lg md:text-xl font-black uppercase tracking-[0.2em] mb-8 md:mb-10 pb-4 border-b border-slate-100 italic text-center lg:text-left">Top DitCash</h3>

@@ -2,10 +2,39 @@
 
 import { prisma } from '@/lib/prisma'
 import * as ExcelJS from 'exceljs'
+import { cookies } from 'next/headers'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
 
-// 🚙 REPORTE DINÁMICO MULTI-PESTAÑA ORIENTADO AL KARDEX LOGÍSTICO COMPLETO
+async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
+  try {
+    const cookieStore = await cookies()
+    const userId = cookieStore.get('user_id')?.value
+    if (!userId) return false
+
+    const usuario = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: { role: true }
+    })
+
+    if (!usuario) return false
+
+    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
+    const rolNombre = usuario.role?.nombre || usuario.rol
+
+    return tienePermiso(permisos, rolNombre, moduloId, accion)
+  } catch (error) {
+    return false
+  }
+}
+
 export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedorId?: string; fechaDesde?: string; fechaHasta?: string }) {
   try {
+
+    const autorizado = await validarAccionSesion('vehiculos', 'ver') || await validarAccionSesion('vehiculos_cont', 'ver')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EXPORTAR reportes de vehículos.' }
+    }
+
     const filtroPlaca = filtros?.placa || ''
     const filtroVendedor = filtros?.vendedorId || ''
     const fechaDesde = filtros?.fechaDesde || ''
@@ -13,7 +42,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
 
     const workbook = new ExcelJS.Workbook()
 
-    // Estilos Corporativos Estándar de DITEC
     const estiloHeader = {
       font: { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } },
       fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001F3F' } },
@@ -38,7 +66,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
       border: { top: { style: 'thin', color: { argb: 'FF94A3B8' } }, bottom: { style: 'double', color: { argb: 'FF000000' } } }
     }
 
-    // Cabeceras globales del Kardex
     const headersKardex = [
       'FECHA REGISTRO', 
       'CONDUCTOR', 
@@ -52,8 +79,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
       'DETALLE TRABAJOS REALIZADOS', 
       'VALOR MANTENIMIENTO'
     ]
-
-    // 1. OBTENCIÓN Y FILTRADO BASE DE LOS DATOS DEL KARDEX
     const todoElKardex = await prisma.kardexVehiculo.findMany({
       include: {
         vehiculo: {
@@ -67,7 +92,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
 
     const vendedores = await prisma.user.findMany({ where: { rol: 'VENDEDOR' } })
 
-    // Filtrado reactivo de la data que va a la hoja General
     const kardexGeneralFiltrado = todoElKardex.filter((k) => {
       const vendedorObj = vendedores.find(v => v.id.toString() === filtroVendedor)
       const nombreVendedorFiltro = vendedorObj?.nombre ? vendedorObj.nombre.toUpperCase() : ''
@@ -93,9 +117,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
       return cumpleVendedor && cumplePlaca && cumpleFecha
     })
 
-    // ==========================================
-    // 🚀 HOJA 1: PESTAÑA GENERAL (SIEMPRE VA)
-    // ==========================================
     const wsGeneral = workbook.addWorksheet('General', { views: [{ showGridLines: true }] })
     wsGeneral.getCell('A1').value = 'DITCASH - HISTORIAL LOGÍSTICO Y CONTABLE GENERAL'
     wsGeneral.getCell('A1').font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FF001F3F' } }
@@ -145,11 +166,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
     })
     autoAjustarColumnas(wsGeneral)
 
-    // ==========================================
-    // 🚀 LÓGICA DE PESTAÑAS SECUNDARIAS DINÁMICAS
-    // ==========================================
-
-    // ESCENARIO A: FILTROS COMPLETAMENTE VACÍOS -> Hojas separadas por Carro (Placa + Vendedor)
     if (!filtroPlaca && !filtroVendedor) {
       const placasUnicas = Array.from(new Set(kardexGeneralFiltrado.map(k => k.vehiculo?.placa).filter(Boolean)))
       
@@ -161,8 +177,7 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
         crearHojaKardexEspecifica(workbook, nombreHoja, registrosDePlaca, headersKardex, estiloHeader, estiloCelda, estiloTotal)
       })
     }
-    
-    // ESCENARIO B: SE FILTRÓ POR PLACA -> Hojas separadas por los nombres de los VENDEDORES que usaron ese carro
+
     else if (filtroPlaca && !filtroVendedor) {
       const vendedoresDeEstaPlaca = Array.from(new Set(kardexGeneralFiltrado.map(k => k.choferEnEseMomento).filter(Boolean)))
 
@@ -173,8 +188,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
         crearHojaKardexEspecifica(workbook, nombreHoja, registrosDelChofer, headersKardex, estiloHeader, estiloCelda, estiloTotal)
       })
     }
-
-    // ESCENARIO C: SE FILTRÓ POR VENDEDOR -> Hojas separadas por las PLACAS de los carros que manejó ese vendedor
     else if (filtroVendedor && !filtroPlaca) {
       const placasDelVendedor = Array.from(new Set(kardexGeneralFiltrado.map(k => k.vehiculo?.placa).filter(Boolean)))
 
@@ -193,7 +206,6 @@ export async function exportarVehiculosExcel(filtros?: { placa?: string; vendedo
   }
 }
 
-// 🛠️ FUNCIÓN AUXILIAR PARA GENERAR CADA HOJA DE MANERA TRANSPARENTE E INMUTABLE
 function crearHojaKardexEspecifica(workbook: ExcelJS.Workbook, nombreHoja: string, registros: any[], headers: string[], eHeader: any, eCelda: any, eTotal: any) {
   const ws = workbook.addWorksheet(nombreHoja, { views: [{ showGridLines: true }] })
   

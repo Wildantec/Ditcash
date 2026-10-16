@@ -2,6 +2,8 @@
 
 import { prisma } from '@/lib/prisma'
 import * as ExcelJS from 'exceljs'
+import { cookies } from 'next/headers'
+import { tienePermiso, PermisoModulo } from '@/lib/permisos'
 
 interface FiltrosExcel {
   vendedor?: string
@@ -9,8 +11,35 @@ interface FiltrosExcel {
   fechaHasta?: string
 }
 
+async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
+  try {
+    const cookieStore = await cookies()
+    const userId = cookieStore.get('user_id')?.value
+    if (!userId) return false
+
+    const usuario = await prisma.user.findUnique({
+      where: { id: parseInt(userId) },
+      include: { role: true }
+    })
+
+    if (!usuario) return false
+
+    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
+    const rolNombre = usuario.role?.nombre || usuario.rol
+
+    return tienePermiso(permisos, rolNombre, moduloId, accion)
+  } catch (error) {
+    return false
+  }
+}
+
 export async function exportarFacturasCombustibleExcel(filtros: FiltrosExcel) {
   try {
+    const autorizado = await validarAccionSesion('facturas_comb', 'ver') || await validarAccionSesion('vehiculos_cont', 'ver')
+    if (!autorizado) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EXPORTAR reportes de facturas de combustible.' }
+    }
+
     const whereClause: any = {}
     
     if (filtros.fechaDesde || filtros.fechaHasta) {
@@ -144,7 +173,6 @@ export async function exportarFacturasCombustibleExcel(filtros: FiltrosExcel) {
     }
 
     if (filtros.vendedor && filtros.vendedor.trim() !== '') {
-
       const vNombre = filtros.vendedor.trim().toUpperCase()
       const ws = workbook.addWorksheet(vNombre.substring(0, 30))
       construirHojaData(ws, `Historial - ${vNombre}`, facturas)

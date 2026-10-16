@@ -1,4 +1,5 @@
 'use client'
+
 import { useState } from 'react'
 import { loginAction } from '@/app/actions/login'
 import Image from 'next/image'
@@ -10,11 +11,14 @@ export default function LoginPage() {
   const [aceptaTerminos, setAceptaTerminos] = useState(false)
   const [showModal, setShowModal] = useState(false) 
 
-  async function handleForm(formData: FormData) {
-    if (!aceptaTerminos) return; 
-    
+  async function handleForm(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (!aceptaTerminos || loading) return; 
+
     setLoading(true)
     setError(null)
+
+    const formData = new FormData(e.currentTarget)
     
     try {
       const result = await loginAction(formData)
@@ -59,7 +63,7 @@ export default function LoginPage() {
             </div>
           </header>
 
-          <form action={handleForm} className="space-y-6">
+          <form onSubmit={handleForm} className="space-y-6">
             {error && (
               <div className="bg-red-50 border border-red-100 text-red-500 p-4 rounded-2xl text-[10px] font-black uppercase text-center animate-bounce">
                 {error}
@@ -108,7 +112,7 @@ export default function LoginPage() {
             <button 
               type="submit"
               disabled={loading || !aceptaTerminos}
-              className={`w-full py-5 rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2
+              className={`w-full py-5 rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.2em] shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer
                 ${aceptaTerminos 
                   ? 'bg-[#001F3F] text-[#FFB800] hover:bg-[#FFB800] hover:text-[#001F3F]' 
                   : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}
@@ -136,8 +140,9 @@ export default function LoginPage() {
         <div className="fixed inset-0 bg-[#001F3F]/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-[2.5rem] p-8 md:p-10 relative shadow-2xl animate-in fade-in zoom-in duration-300">
             <button 
+              type="button"
               onClick={() => setShowModal(false)}
-              className="absolute top-6 right-6 text-slate-300 hover:text-[#001F3F] font-black text-xl"
+              className="absolute top-6 right-6 text-slate-300 hover:text-[#001F3F] font-black text-xl cursor-pointer"
             >✕</button>
             
             <div className="flex items-center gap-3 mb-6">
@@ -166,8 +171,9 @@ export default function LoginPage() {
 
             <div className="grid grid-cols-1 gap-3 mt-8">
               <button 
+                type="button"
                 onClick={() => { setAceptaTerminos(true); setShowModal(false); }}
-                className="w-full py-5 bg-[#001F3F] text-[#FFB800] rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[#FFB800] hover:text-[#001F3F] transition-all shadow-lg"
+                className="w-full py-5 bg-[#001F3F] text-[#FFB800] rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-[#FFB800] hover:text-[#001F3F] transition-all shadow-lg cursor-pointer"
               >
                 Aceptar y Continuar
               </button>

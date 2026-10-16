@@ -14,9 +14,7 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
   const AUTONOMIA_FIJA = 51.14
   const [costoPorKm, setCostoPorKm] = useState<number>(0)
 
-
   const [tabActiva, setTabActiva] = useState<'distancia' | 'presupuesto'>('distancia')
-
 
   const [inputKm, setInputKm] = useState<string>('380')
   const [resultadoDolares, setResultadoDolares] = useState<number>(0)
@@ -30,11 +28,10 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
   
   const modalRef = useRef<HTMLDivElement>(null)
 
-
   useEffect(() => {
     if (isOpen) {
-      const xCentrado = window.innerWidth / 2 - 210
-      const yCentrado = window.innerHeight / 2 - 240
+      const xCentrado = Math.max(0, window.innerWidth / 2 - 210)
+      const yCentrado = Math.max(0, window.innerHeight / 2 - 240)
       setPosicion({ x: xCentrado, y: yCentrado })
     }
   }, [isOpen])
@@ -46,10 +43,13 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
       let nuevaX = e.clientX - relativaPos.x
       let nuevaY = e.clientY - relativaPos.y
 
+      const anchoModal = modalRef.current?.offsetWidth || 420
+      const altoModal = modalRef.current?.offsetHeight || 450
+
       if (nuevaX < 0) nuevaX = 0
       if (nuevaY < 0) nuevaY = 0
-      if (nuevaX > window.innerWidth - 420) nuevaX = window.innerWidth - 420
-      if (nuevaY > window.innerHeight - 450) nuevaY = window.innerHeight - 450
+      if (nuevaX > window.innerWidth - anchoModal) nuevaX = window.innerWidth - anchoModal
+      if (nuevaY > window.innerHeight - altoModal) nuevaY = window.innerHeight - altoModal
 
       setPosicion({ x: nuevaX, y: nuevaY })
     }
@@ -69,10 +69,9 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
     }
   }, [estaArrastrando, relativaPos])
 
-
   useEffect(() => {
     const precio = parseFloat(precioGalon) || 0
-    if (precio > 0) {
+    if (precio > 0 && AUTONOMIA_FIJA > 0) {
       const ckm = precio / AUTONOMIA_FIJA
       setCostoPorKm(ckm)
 
@@ -193,7 +192,6 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
         <div className="p-4 pt-1 space-y-4">
           
           {tabActiva === 'distancia' ? (
-
             <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider ml-1">Distancia total a recorrer</label>
@@ -218,7 +216,6 @@ export default function CalculadoraCombustibleModal({ isOpen, onClose }: Calcula
               </div>
             </div>
           ) : (
-
             <div className="space-y-3">
               <div className="space-y-1">
                 <label className="text-[8px] font-black text-slate-400 uppercase tracking-wider ml-1">Valor asignado / Consumido</label>

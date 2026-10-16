@@ -5,12 +5,13 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { logoutAction } from '@/app/actions/login'
 import { 
-  BarChart3, Users, Gift, ChevronDown, LogOut, Menu, X, Fuel, 
+  BarChart3, Gift, ChevronDown, LogOut, Menu, X, Fuel, 
   Settings, Wrench, Search
 } from 'lucide-react'
 
 interface SidebarProps {
   role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION' | 'SERVICIO_TECNICO' | string
+  permisos?: any[] | null
 }
 
 const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
@@ -23,11 +24,10 @@ const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
   ADMIN: []
 };
 
-export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
+export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProps) {
   const pathname = usePathname()
-  const role = roleProp?.toUpperCase() || 'VENDEDOR' // Normalizamos a mayúsculas
+  const role = roleProp?.toUpperCase() || 'VENDEDOR'
   const [isOpen, setIsOpen] = useState(false)
-  const [permisosCargados, setPermisosCargados] = useState<any[]>([])
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     operaciones: false,
     incentivos: false,
@@ -35,23 +35,6 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
     servicio_tecnico: false,
     configuracion: false
   })
-
-  if (pathname === '/') return null
-
-  useEffect(() => {
-    async function obtenerAccesos() {
-      try {
-        const res = await fetch('/api/admin/permisos')
-        const json = await res.json()
-        if (json.success && json.data) {
-          setPermisosCargados(json.data)
-        }
-      } catch (err) {
-        console.error('Error cargando accesos del menú:', err)
-      }
-    }
-    obtenerAccesos()
-  }, [pathname])
 
   useEffect(() => {
     if (pathname.includes('/combustible/')) {
@@ -61,20 +44,23 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
     } else if (pathname.includes('/vendedores') || pathname.includes('/campanas') || pathname.includes('/canjes')) {
       setOpenSections(prev => ({ ...prev, operaciones: true }))
     } else if (pathname.includes('/premios') || pathname.includes('/inventario') || pathname.includes('/bodegas')) {
-      setOpenSections(prev => ({ ...prev, incentivos: true })) // ◄ Corregido: 'incentives' por 'incentivos'
-    } else if (pathname.includes('/usuarios') || pathname.includes('/permisos')) {
+      setOpenSections(prev => ({ ...prev, incentivos: true }))
+    } else if (pathname.includes('/usuarios') || pathname.includes('/roles') || pathname.includes('/permisos')) {
       setOpenSections(prev => ({ ...prev, configuracion: true }))
     }
   }, [pathname])
 
+  if (pathname === '/') return null
+
   const tieneAccAccessModulo = (moduloId: string) => {
     if (role === 'ADMIN') return true
 
+    if (permisos && Array.isArray(permisos) && permisos.length > 0) {
+      const permisoEncontrado = permisos.find((p: any) => p.modulo === moduloId)
+      return permisoEncontrado ? !!permisoEncontrado.ver : false
+    }
     const modulosFijos = MODULOS_POR_DEFECTO[role] || []
-    if (modulosFijos.includes(moduloId)) return true
-
-    const permiso = permisosCargados.find(p => p.rol === role && p.modulo === moduloId)
-    return permiso ? !!permiso.ver : false
+    return modulosFijos.includes(moduloId)
   }
 
   const toggleSection = (id: string) => {
@@ -109,7 +95,6 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
       id: 'contabilidad',
       label: 'Contabilidad',
       icon: Fuel,
-      forzarMostrar: role === 'ADMIN' || role === 'CONTABILIDAD' || role === 'FACTURACION',
       submodulos: [
         { href: '/dashboard/combustible/estaciones', label: 'Estaciones', permisoKey: 'estaciones' },
         { href: '/dashboard/combustible/facturas', label: 'Ingresar Factura', permisoKey: 'facturas_comb' }
@@ -119,7 +104,6 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
       id: 'servicio_tecnico',
       label: 'Servicio Técnico',
       icon: Wrench,
-      forzarMostrar: role === 'ADMIN' || role === 'SERVICIO_TECNICO',
       submodulos: [
         { href: '/dashboard/combustible/vehiculos', label: 'Flota de Vehículos', permisoKey: 'vehiculos' }
       ]
@@ -130,14 +114,14 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
       icon: Settings,
       submodulos: [
         { href: '/dashboard/usuarios', label: 'Gestión Usuarios', permisoKey: 'usuarios' },
-        { href: '/dashboard/permisos', label: 'Seguridad Corp.', permisoKey: 'permisos', soloAdmin: true }
+        { href: '/dashboard/permisos', label: 'Roles y Permisos', permisoKey: 'permisos' }
       ]
     }
   ]
 
   return (
     <>
-      <button onClick={() => setIsOpen(!isOpen)} className="lg:hidden fixed top-4 left-4 z-[60] bg-[#001F3F] text-[#FFB800] p-3 rounded-xl shadow-2xl">
+      <button type="button" onClick={() => setIsOpen(!isOpen)} className="lg:hidden fixed top-4 left-4 z-[60] bg-[#001F3F] text-[#FFB800] p-3 rounded-xl shadow-2xl cursor-pointer">
         {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
@@ -154,8 +138,7 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
           
           {menuEstructura.map((seccion) => {
             const submodulosPermitidos = seccion.submodulos.filter((sub: any) => {
-              if (sub.soloAdmin && role !== 'ADMIN') return false;
-              if (seccion.forzarMostrar || role === 'ADMIN') return true;
+              if (role === 'ADMIN') return true;
               return tieneAccAccessModulo(sub.permisoKey);
             });
 
@@ -166,8 +149,9 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
             return (
               <div key={seccion.id} className="w-full">
                 <button 
+                  type="button"
                   onClick={() => toggleSection(seccion.id)}
-                  className="w-full flex items-center justify-between px-8 py-3.5 text-slate-400 hover:bg-[#002d5c] hover:text-white transition-all border-l-4 border-transparent uppercase text-[11px] font-black tracking-widest"
+                  className="w-full flex items-center justify-between px-8 py-3.5 text-slate-400 hover:bg-[#002d5c] hover:text-white transition-all border-l-4 border-transparent uppercase text-[11px] font-black tracking-widest cursor-pointer"
                 >
                   <div className="flex items-center gap-4">
                     <seccion.icon size={15} strokeWidth={2.5} />
@@ -200,7 +184,7 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
         </nav>
         <div className="p-6 border-t border-white/10 bg-[#001730]">
           <form action={logoutAction}>
-            <button type="submit" className="flex items-center gap-4 px-8 py-3.5 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-xl w-full text-left transition-all">
+            <button type="submit" className="flex items-center gap-4 px-8 py-3.5 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-xl w-full text-left transition-all cursor-pointer">
               <LogOut size={15} /> <span>Cerrar Sesión</span>
             </button>
           </form>
