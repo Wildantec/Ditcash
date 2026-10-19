@@ -10,6 +10,12 @@ import { ShieldCheck, Users, Briefcase, UserPlus, X, Eye, Pencil, Trash2, IdCard
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [permisosAcceso, setPermisosAcceso] = useState({
+    canViewUsers: false,
+    canCreateUsers: false,
+    canEditUsers: false,
+    canDeleteUsers: false
+  })
   const [isModalCrearOpen, setIsModalCrearOpen] = useState(false)
   const [isModalEditarOpen, setIsModalEditarOpen] = useState(false)
   const [isModalVerOpen, setIsModalVerOpen] = useState(false)
@@ -19,6 +25,22 @@ export default function UsuariosPage() {
   const cargarUsuarios = useCallback(async () => {
     try {
       setLoading(true)
+      const response = await fetch('/api/admin/permisos')
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'No se pudo validar el acceso a usuarios')
+      }
+      const access = {
+        canViewUsers: !!result.canViewUsers,
+        canCreateUsers: !!result.canCreateUsers,
+        canEditUsers: !!result.canEditUsers,
+        canDeleteUsers: !!result.canDeleteUsers
+      }
+      setPermisosAcceso(access)
+      if (!access.canViewUsers) {
+        setUsuarios([])
+        return
+      }
       const data = await getUsuariosAction()
       setUsuarios(data || [])
     } catch (error) {
@@ -72,15 +94,17 @@ export default function UsuariosPage() {
           <h1 className="text-2xl font-black uppercase italic tracking-tighter">Control de Usuarios</h1>
           <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">Gestiona quién entra al sistema y sus permisos</p>
         </div>
-        <button 
-          onClick={() => setIsModalCrearOpen(true)}
-          className="bg-[#001F3F] text-[#FFB800] hover:bg-black transition-all font-black text-[10px] uppercase tracking-widest px-6 py-4 rounded-2xl flex items-center gap-2 shadow-lg"
-        >
-          <UserPlus size={14} strokeWidth={3} />
-          <span>Crear Usuario</span>
-        </button>
+        {permisosAcceso.canCreateUsers && (
+          <button
+            onClick={() => setIsModalCrearOpen(true)}
+            className="bg-[#001F3F] text-[#FFB800] hover:bg-black transition-all font-black text-[10px] uppercase tracking-widest px-6 py-4 rounded-2xl flex items-center gap-2 shadow-lg"
+          >
+            <UserPlus size={14} strokeWidth={3} />
+            <span>Crear Usuario</span>
+          </button>
+        )}
       </header>
-      {isModalCrearOpen && (
+      {isModalCrearOpen && permisosAcceso.canCreateUsers && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[550px] rounded-[3.5rem] p-10 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsModalCrearOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"><X size={20} strokeWidth={2.5} /></button>
@@ -88,7 +112,7 @@ export default function UsuariosPage() {
           </div>
         </div>
       )}
-      {isModalEditarOpen && usuarioSeleccionado && typeof usuarioSeleccionado === 'number' && (
+      {isModalEditarOpen && permisosAcceso.canEditUsers && usuarioSeleccionado && typeof usuarioSeleccionado === 'number' && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[650px] rounded-[3.5rem] p-10 shadow-2xl border border-slate-100 relative max-h-[90vh] overflow-y-auto">
             <button 
@@ -108,7 +132,7 @@ export default function UsuariosPage() {
           </div>
         </div>
       )}
-      {isModalVerOpen && usuarioSeleccionado && typeof usuarioSeleccionado === 'object' && (
+      {isModalVerOpen && permisosAcceso.canViewUsers && usuarioSeleccionado && typeof usuarioSeleccionado === 'object' && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-6 z-50 animate-fadeIn">
           <div className="bg-white w-full max-w-[480px] rounded-[3.5rem] p-10 shadow-2xl border border-slate-100 relative overflow-hidden">
             <button onClick={() => { setIsModalVerOpen(false); setUsuarioSeleccionado(null) }} className="absolute top-8 right-8 text-slate-400 hover:text-red-500 transition-colors focus:outline-none"><X size={20} strokeWidth={2.5} /></button>
@@ -176,7 +200,13 @@ export default function UsuariosPage() {
                   </td>
                 </tr>
               ) : (
-                usuarios.map((u: any) => (
+                !permisosAcceso.canViewUsers ? (
+                  <tr>
+                    <td colSpan={5} className="p-10 text-center text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+                      No tienes permiso para visualizar usuarios.
+                    </td>
+                  </tr>
+                ) : usuarios.map((u: any) => (
                   <tr key={u.id} className="group hover:bg-slate-50 transition-colors">
                     <td className="px-10 py-6">
                       <div className="flex items-center gap-4">
@@ -212,29 +242,29 @@ export default function UsuariosPage() {
                     </td>
                     <td className="px-10 py-6 text-right">
                       <div className="flex justify-end items-center gap-5">
-                        <button 
+                        {permisosAcceso.canViewUsers && <button
                           onClick={() => abrirVerModal(u)}
                           className="text-[#001F3F] hover:text-[#FFB800] transition-colors p-1 focus:outline-none"
                           title="Ver Detalle"
                         >
                           <Eye size={18} strokeWidth={2.2} />
-                        </button>
+                        </button>}
                         
-                        <button 
+                        {permisosAcceso.canEditUsers && <button
                           onClick={() => abrirEditarModal(u.id)}
                           className="text-slate-400 hover:text-[#001F3F] transition-colors p-1 focus:outline-none"
                           title="Editar Perfil"
                         >
                           <Pencil size={17} strokeWidth={2.2} />
-                        </button>
+                        </button>}
                         
-                        <button 
+                        {permisosAcceso.canDeleteUsers && <button
                           onClick={() => handleEliminar(u.id, u.vendedor?.nombre || u.nombre || 'Usuario')}
                           className="text-red-400 hover:text-red-600 transition-colors p-1 focus:outline-none"
                           title="Borrar Acceso"
                         >
                           <Trash2 size={17} strokeWidth={2.2} />
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
+import { getSessionRole, readRolePermissions, roleHasPermission } from '@/lib/role-permissions'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -24,6 +25,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Faltan campos obligatorios.' }, { status: 400 })
     }
 
+    const role = await getSessionRole()
+    if (!role) {
+      return NextResponse.json({ success: false, message: 'Sesión no válida' }, { status: 401 })
+    }
+    const publicidadExistente = await prisma.productAdvertisement.findUnique({
+      where: { productCode }
+    })
+    const permissions = await readRolePermissions()
+    const action = publicidadExistente ? 'editar' : 'crear'
+    if (!await roleHasPermission(role, 'inventario', action, permissions)) {
+      return NextResponse.json({
+        success: false,
+        message: `No tienes permiso para ${action} publicidad del inventario`
+      }, { status: 403 })
+    }
+
     let webImagePath = ''
 
     if (imageFile && imageFile.size > 0) {
@@ -42,10 +59,6 @@ export async function POST(request: Request) {
 
       webImagePath = uploadResult.secure_url
     }
-
-    const publicidadExistente = await prisma.productAdvertisement.findUnique({
-      where: { productCode: productCode }
-    })
 
     const publicidad = await prisma.productAdvertisement.upsert({
       where: { productCode: productCode },
@@ -71,13 +84,13 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, message: 'Publicidad guardada con éxito.', data: publicidad })
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('ERROR CRÍTICO EN API PUBLICIDAD (BASE64):', error)
     
     return NextResponse.json({ 
       success: false, 
       message: 'Error interno en los servicios de Ditcash.',
-      error: error?.message || String(error) 
+      error: error instanceof Error ? error.message : String(error)
     }, { status: 500 })
   }
 }

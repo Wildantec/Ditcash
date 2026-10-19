@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma'
 import { v2 as cloudinary } from 'cloudinary'
 import { cookies } from 'next/headers'
+import { getSessionRole, roleHasPermission } from '@/lib/role-permissions'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -43,6 +44,9 @@ export async function getSaldoVendedorAction() {
 
 export async function getVendedoresRanking() {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'vendedores', 'ver')) return []
+
     const vendedoresRaw = await prisma.vendedor.findMany({
       include: {
         evidencias: true 

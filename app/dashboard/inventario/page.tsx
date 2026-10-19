@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import TablaInventario from './TablaInventario'
 import { Package } from 'lucide-react'
+import { redirect } from 'next/navigation'
+import { getSessionRole, readRolePermissions, roleHasPermission } from '@/lib/role-permissions'
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +99,16 @@ async function obtenerProductosDeAraujos() {
 export default async function InventarioPage() {
   const cookieStore = await cookies()
   const userId = cookieStore.get('user_id')?.value || ''
+  const role = await getSessionRole()
+  if (!role) redirect('/login')
+  const permissions = await readRolePermissions()
+  const accionesPermitidas = {
+    ver: await roleHasPermission(role, 'inventario', 'ver', permissions),
+    crear: await roleHasPermission(role, 'inventario', 'crear', permissions),
+    editar: await roleHasPermission(role, 'inventario', 'editar', permissions),
+    eliminar: await roleHasPermission(role, 'inventario', 'eliminar', permissions)
+  }
+  if (!accionesPermitidas.ver) redirect('/dashboard')
   
   const [bodegasAraujos, configsLocales, productosAraujos, bannersLocales] = await Promise.all([
     obtenerBodegasDeAraujos(),
@@ -106,7 +118,7 @@ export default async function InventarioPage() {
   ])
   
   const usuarioLocal = await prisma.user.findUnique({ where: { id: parseInt(userId) } })
-  const rolUsuario = usuarioLocal?.rol || 'VENDEDOR'
+  const rolUsuario = usuarioLocal?.rol || role
   const nombreVendedor = usuarioLocal?.nombre || 'VENDEDOR REQUISITOS'
   
   const bodegasMapeadasParaTabla = bodegasAraujos.map((bod: any) => {
@@ -148,6 +160,7 @@ export default async function InventarioPage() {
         bodegasAPI={bodegasMapeadasParaTabla}
         nombreVendedorActual={nombreVendedor}
         rolUsuario={rolUsuario}
+        accionesPermitidas={accionesPermitidas}
       />
     </div>
   )

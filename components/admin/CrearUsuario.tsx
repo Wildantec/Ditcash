@@ -1,24 +1,16 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { IdCard, ShieldCheck, User, Key, Loader2, ChevronDown, Users, Briefcase,FileSpreadsheet, Wallet, FileText, Wrench } from 'lucide-react'
+import { IdCard, ShieldCheck, User, Key, Loader2, ChevronDown } from 'lucide-react'
 import Swal from 'sweetalert2'
 
 interface CrearUsuarioProps {
   onSuccess?: () => void;
 }
-const ROLES = [
-  { value: 'ADMIN', label: 'ADMINISTRADOR', icon: ShieldCheck },
-  { value: 'MARKETING', label: 'MARKETING', icon: Users },
-  { value: 'VENDEDOR', label: 'VENDEDOR', icon: Briefcase },
-  { value: 'CONTABILIDAD', label: 'CONTABILIDAD', icon: FileSpreadsheet },
-  { value: 'COBRANZAS', label: 'COBRANZAS', icon: Wallet },
-  { value: 'FACTURACION', label: 'FACTURACIÓN', icon: FileText },
-  { value: 'SERVICIO_TECNICO', label: 'SERVICIO TÉCNICO', icon: Wrench }
-]
-
 export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
-  const [formData, setFormData] = useState({ nombre: '', cedula: '', password: '', rol: 'VENDEDOR' })
+  const [formData, setFormData] = useState({ nombre: '', cedula: '', password: '', rol: '' })
+  const [roles, setRoles] = useState<string[]>([])
+  const [rolesCargando, setRolesCargando] = useState(true)
   const [cargando, setCargando] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -30,6 +22,26 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    async function cargarRoles() {
+      try {
+        const response = await fetch('/api/admin/permisos')
+        const result = await response.json()
+        const rolesAsignables = result.assignableRoles || result.roles
+        if (!response.ok || !result.success || !Array.isArray(rolesAsignables)) {
+          throw new Error(result.message || 'No se pudieron cargar los roles')
+        }
+        const rolesDisponibles = rolesAsignables as string[]
+        setRoles(rolesDisponibles)
+      } catch (error) {
+        Swal.fire('Error', error instanceof Error ? error.message : 'No se pudieron cargar los roles.', 'error')
+      } finally {
+        setRolesCargando(false)
+      }
+    }
+    cargarRoles()
   }, [])
 
   const enviar = async (e: React.FormEvent) => {
@@ -51,7 +63,7 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
           confirmButtonColor: '#001F3F'
         })
         
-        setFormData({ nombre: '', cedula: '', password: '', rol: 'VENDEDOR' })
+        setFormData({ nombre: '', cedula: '', password: '', rol: '' })
         if (onSuccess) onSuccess();
       } else {
         const errorData = await res.json().catch(() => ({}));
@@ -63,13 +75,14 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
         })
       }
     } catch (error) {
+      console.error('Error creando usuario:', error)
       Swal.fire('Error Crítico', 'Fallo de conexión con el servidor.', 'error')
     } finally {
       setCargando(false)
     }
   }
 
-  const currentRol = ROLES.find(r => r.value === formData.rol) || ROLES[0]
+  const currentRol = formData.rol
 
   return (
     <div className="text-[#001F3F] bg-white">
@@ -134,32 +147,31 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
               className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs text-[#001F3F] transition-all shadow-inner flex items-center justify-between hover:bg-slate-100/50"
             >
               <div className="flex items-center gap-2">
-                <currentRol.icon size={14} className="text-[#FFB800]" />
-                <span>{currentRol.label}</span>
+                <ShieldCheck size={14} className="text-[#FFB800]" />
+                <span>{currentRol ? currentRol.replace(/_/g, ' ') : rolesCargando ? 'CARGANDO ROLES' : 'SELECCIONAR ROL'}</span>
               </div>
               <ChevronDown size={16} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {isOpen && (
-              <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-fadeIn">
-                {ROLES.map((rol) => {
-                  const Icon = rol.icon;
+              <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-fadeIn max-h-60 overflow-y-auto">
+                {roles.map((role) => {
                   return (
                     <button
-                      key={rol.value}
+                      key={role}
                       type="button"
                       onClick={() => {
-                        setFormData({ ...formData, rol: rol.value })
+                        setFormData({ ...formData, rol: role })
                         setIsOpen(false)
                       }}
                       className={`w-full px-5 py-3.5 text-left font-black text-xs transition-colors flex items-center gap-2 ${
-                        formData.rol === rol.value 
+                        formData.rol === role
                           ? 'bg-[#001F3F] text-[#FFB800]' 
                           : 'text-[#001F3F] hover:bg-slate-50'
                       }`}
                     >
-                      <Icon size={14} className={formData.rol === rol.value ? 'text-[#FFB800]' : 'text-slate-400'} />
-                      {rol.label}
+                      <ShieldCheck size={14} className={formData.rol === role ? 'text-[#FFB800]' : 'text-slate-400'} />
+                      {role.replace(/_/g, ' ')}
                     </button>
                   )
                 })}
@@ -169,7 +181,7 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
         </div>
         <div className="pt-4 flex justify-end">
           <button 
-            disabled={cargando}
+            disabled={cargando || rolesCargando || !formData.rol}
             className="w-full sm:w-auto bg-[#001F3F] text-[#FFB800] border border-[#001F3F] py-4 px-10 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg hover:bg-black hover:text-[#FFB800] transition-all duration-300 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 min-h-[48px]"
           >
             {cargando ? (

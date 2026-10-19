@@ -40,10 +40,16 @@ interface TablaProps {
   productosIniciales: ProductoReal[]
   bodegasAPI: any[]
   nombreVendedorActual: string
-  rolUsuario: string 
+  rolUsuario: string
+  accionesPermitidas: {
+    ver: boolean
+    crear: boolean
+    editar: boolean
+    eliminar: boolean
+  }
 }
 
-export default function TablaInventario({ productosIniciales, bodegasAPI, nombreVendedorActual, rolUsuario }: TablaProps) {
+export default function TablaInventario({ productosIniciales, bodegasAPI, nombreVendedorActual, rolUsuario, accionesPermitidas }: TablaProps) {
   const nombreLimpioVendedor = nombreVendedorActual.toUpperCase().trim()
   
   // Guardamos los productos en un estado local persistente
@@ -335,7 +341,7 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
                                 >
                                   Ver Banner
                                 </button>
-                                {(rolUsuario === 'ADMIN' || rolUsuario === 'MARKETING') && (
+                                {accionesPermitidas.editar && (
                                   <button 
                                     type="button"
                                     onClick={() => abrirModalCrear(item)}
@@ -346,7 +352,7 @@ export default function TablaInventario({ productosIniciales, bodegasAPI, nombre
                                 )}
                               </div>
                             ) : (
-                              (rolUsuario === 'ADMIN' || rolUsuario === 'MARKETING') ? (
+                              accionesPermitidas.crear ? (
                                 <button 
                                   type="button"
                                   onClick={() => abrirModalCrear(item)}

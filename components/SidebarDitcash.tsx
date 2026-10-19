@@ -6,31 +6,22 @@ import { useEffect, useState } from 'react'
 import { logoutAction } from '@/app/actions/login'
 import { 
   BarChart3, Users, Gift, ChevronDown, LogOut, Menu, X, Fuel, 
-  Settings, Wrench, Search
+  Settings, Wrench, Search, FileText
 } from 'lucide-react'
 
 interface SidebarProps {
-  role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION' | 'SERVICIO_TECNICO' | string
+  role: string
 }
-
-const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
-  VENDEDOR: ['campanas', 'premios', 'inventario'],
-  MARKETING: ['vendedores', 'campanas', 'canjes', 'historial', 'premios', 'inventario'],
-  CONTABILIDAD: ['estaciones', 'facturas_comb', 'vehiculos'],
-  SERVICIO_TECNICO: ['vehiculos', 'estaciones'],
-  COBRANZAS: [],
-  FACTURACION: [],
-  ADMIN: []
-};
 
 export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
   const pathname = usePathname()
-  const role = roleProp?.toUpperCase() || 'VENDEDOR' // Normalizamos a mayúsculas
+  const role = roleProp?.toUpperCase().trim() || ''
   const [isOpen, setIsOpen] = useState(false)
   const [permisosCargados, setPermisosCargados] = useState<any[]>([])
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     operaciones: false,
     incentivos: false,
+    facturacion: false,
     contabilidad: false,
     servicio_tecnico: false,
     configuracion: false
@@ -54,7 +45,9 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
   }, [pathname])
 
   useEffect(() => {
-    if (pathname.includes('/combustible/')) {
+    if (pathname.startsWith('/dashboard/facturacion')) {
+      setOpenSections(prev => ({ ...prev, facturacion: true }))
+    } else if (pathname.includes('/combustible/')) {
       setOpenSections(prev => ({ ...prev, contabilidad: true }))
     } else if (pathname.includes('/servicio-tecnico/')) {
       setOpenSections(prev => ({ ...prev, servicio_tecnico: true }))
@@ -69,10 +62,6 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
 
   const tieneAccAccessModulo = (moduloId: string) => {
     if (role === 'ADMIN') return true
-
-    const modulosFijos = MODULOS_POR_DEFECTO[role] || []
-    if (modulosFijos.includes(moduloId)) return true
-
     const permiso = permisosCargados.find(p => p.rol === role && p.modulo === moduloId)
     return permiso ? !!permiso.ver : false
   }
@@ -106,10 +95,17 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
       ]
     },
     {
+      id: 'facturacion',
+      label: 'Facturación',
+      icon: FileText,
+      submodulos: [
+        { href: '/dashboard/facturacion', label: 'Evaluación y Reportes', permisoKey: 'facturacion' }
+      ]
+    },
+    {
       id: 'contabilidad',
       label: 'Contabilidad',
       icon: Fuel,
-      forzarMostrar: role === 'ADMIN' || role === 'CONTABILIDAD' || role === 'FACTURACION',
       submodulos: [
         { href: '/dashboard/combustible/estaciones', label: 'Estaciones', permisoKey: 'estaciones' },
         { href: '/dashboard/combustible/facturas', label: 'Ingresar Factura', permisoKey: 'facturas_comb' }
@@ -119,7 +115,6 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
       id: 'servicio_tecnico',
       label: 'Servicio Técnico',
       icon: Wrench,
-      forzarMostrar: role === 'ADMIN' || role === 'SERVICIO_TECNICO',
       submodulos: [
         { href: '/dashboard/combustible/vehiculos', label: 'Flota de Vehículos', permisoKey: 'vehiculos' }
       ]
@@ -130,7 +125,7 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
       icon: Settings,
       submodulos: [
         { href: '/dashboard/usuarios', label: 'Gestión Usuarios', permisoKey: 'usuarios' },
-        { href: '/dashboard/permisos', label: 'Seguridad Corp.', permisoKey: 'permisos', soloAdmin: true }
+        { href: '/dashboard/permisos', label: 'Seguridad Corp.', permisoKey: 'permisos' }
       ]
     }
   ]
@@ -154,8 +149,7 @@ export default function SidebarDitcash({ role: roleProp }: SidebarProps) {
           
           {menuEstructura.map((seccion) => {
             const submodulosPermitidos = seccion.submodulos.filter((sub: any) => {
-              if (sub.soloAdmin && role !== 'ADMIN') return false;
-              if (seccion.forzarMostrar || role === 'ADMIN') return true;
+              if (role === 'ADMIN') return true;
               return tieneAccAccessModulo(sub.permisoKey);
             });
 

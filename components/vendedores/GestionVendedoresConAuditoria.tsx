@@ -5,7 +5,14 @@ import { getEvidenciasByVendedor, revisarEvidenciaAction, eliminarEvidenciaActio
 import Swal from 'sweetalert2'
 import { Search, ArrowLeft, Trash2, Check, X } from 'lucide-react' 
 
-export default function GestionVendedoresConAuditoria() {
+interface AccionesPermitidas {
+  ver: boolean
+  crear: boolean
+  editar: boolean
+  eliminar: boolean
+}
+
+export default function GestionVendedoresConAuditoria({ accionesPermitidas }: { accionesPermitidas: AccionesPermitidas }) {
   const [vendedores, setVendedores] = useState<any[]>([])
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState<any>(null)
   const [evidencias, setEvidencias] = useState<any[]>([])
@@ -259,13 +266,15 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
                     
                     <div className="absolute top-3 right-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
                         {/* 🟢 Botón de descarga removido con éxito de la botonera flotante superior */}
-                        <button 
-                          onClick={() => handleEliminar(evi.id)} 
-                          title="Eliminar"
-                          className="bg-white/90 backdrop-blur text-red-600 w-8 h-8 rounded-xl flex items-center justify-center shadow-md transition-colors hover:bg-red-600 hover:text-white"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {accionesPermitidas.eliminar && (
+                          <button
+                            onClick={() => handleEliminar(evi.id)}
+                            title="Eliminar"
+                            className="bg-white/90 backdrop-blur text-red-600 w-8 h-8 rounded-xl flex items-center justify-center shadow-md transition-colors hover:bg-red-600 hover:text-white"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                     </div>
 
                     <div className={`absolute top-3 left-3 text-[7px] font-black px-2 py-1 rounded-md uppercase text-white shadow-md ${evi.estado === 'pendiente' ? 'bg-orange-500 animate-pulse' : evi.estado === 'aprobado' ? 'bg-green-500' : 'bg-red-500'}`}>
@@ -292,7 +301,7 @@ const expandirEvidenciaAuditoria = (url: string, clienteNombre: string) => {
                        </p>
                     )}
 
-                    {evi.estado === 'pendiente' && (
+                    {evi.estado === 'pendiente' && accionesPermitidas.editar && (
                       <div className="flex gap-2 mt-auto" onClick={(e) => e.stopPropagation()}>
                         <button 
                           onClick={() => handleRevisar(evi.id, true)} 

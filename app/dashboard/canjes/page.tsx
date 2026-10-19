@@ -7,10 +7,33 @@ import { Bell, Gift, User, Loader2 } from 'lucide-react'
 export default function GestionCanjesAdmin() {
   const [solicitudes, setSolicitudes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [puedeEditarCanjes, setPuedeEditarCanjes] = useState(false)
 
   async function cargarSolicitudes() {
     try {
       setLoading(true)
+      const response = await fetch('/api/admin/permisos')
+      const permissionsResponse = await response.json()
+      if (!response.ok || !permissionsResponse.success) {
+        throw new Error(permissionsResponse.message || 'No se pudieron validar los permisos de canjes')
+      }
+      const role = permissionsResponse.currentRole
+      const permissionEntry = Array.isArray(permissionsResponse.data)
+        ? permissionsResponse.data.find((entry: unknown) => {
+            if (!entry || typeof entry !== 'object') return false
+            const values = entry as Record<string, unknown>
+            return values.rol === role && values.modulo === 'canjes'
+          })
+        : undefined
+      const permission = permissionEntry && typeof permissionEntry === 'object'
+        ? permissionEntry as { ver?: unknown; editar?: unknown }
+        : undefined
+      const canView = role === 'ADMIN' || permission?.ver === true
+      setPuedeEditarCanjes(role === 'ADMIN' || permission?.editar === true)
+      if (!canView) {
+        setSolicitudes([])
+        return
+      }
       const data = await getSolicitudesCanje()
       setSolicitudes(data || [])
     } catch (error) {
@@ -165,7 +188,7 @@ export default function GestionCanjesAdmin() {
                   </div>
                 </div>
                 <div className="px-8 pb-8 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  {puedeEditarCanjes && <div className="grid grid-cols-2 gap-4">
                     <button 
                       onClick={() => handleGestion(s.id, false, s.premio.nombre, s.vendedor.nombre)}
                       className="py-4 bg-slate-100 text-slate-400 border border-transparent rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all active:scale-95"
@@ -178,7 +201,7 @@ export default function GestionCanjesAdmin() {
                     >
                       Aprobar Canje
                     </button>
-                  </div>
+                  </div>}
                   <div className="text-center pt-2 border-t border-slate-50">
                     <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.25em] font-mono">
                       REGISTRO: {new Date(s.createdAt).toLocaleDateString('es-EC')}

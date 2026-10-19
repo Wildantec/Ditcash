@@ -1,16 +1,23 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import GestionVendedoresConAuditoria from '@/components/vendedores/GestionVendedoresConAuditoria';
+import { getSessionRole, readRolePermissions, roleHasPermission } from '@/lib/role-permissions';
 
 export const dynamic = 'force-dynamic';
 
 export default async function VendedoresAuditoriaPage() {
-  const cookieStore = await cookies();
-  const role = cookieStore.get('user_role')?.value || 'VENDEDOR';
+  const role = await getSessionRole();
+  if (!role) redirect('/login');
 
-  if (role !== 'ADMIN' && role !== 'MARKETING') {
+  const permissions = await readRolePermissions();
+  const accionesPermitidas = {
+    ver: await roleHasPermission(role, 'vendedores', 'ver', permissions),
+    crear: await roleHasPermission(role, 'vendedores', 'crear', permissions),
+    editar: await roleHasPermission(role, 'vendedores', 'editar', permissions),
+    eliminar: await roleHasPermission(role, 'vendedores', 'eliminar', permissions)
+  };
+  if (!accionesPermitidas.ver) {
     redirect('/dashboard');
   }
 
-  return <GestionVendedoresConAuditoria />;
+  return <GestionVendedoresConAuditoria accionesPermitidas={accionesPermitidas} />;
 }

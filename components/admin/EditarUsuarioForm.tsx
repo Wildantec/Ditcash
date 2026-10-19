@@ -3,23 +3,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUsuarioByIdAction, actualizarUsuarioAction } from '@/app/actions/usuarios'
-import { IdCard, ShieldCheck, User, ChevronDown, Users, Briefcase, FileSpreadsheet, Wallet, FileText, Wrench } from 'lucide-react'
+import { IdCard, ShieldCheck, User, ChevronDown } from 'lucide-react'
 import Swal from 'sweetalert2'
 
 interface EditarUsuarioFormProps {
   usuarioId: number;
   onFormSuccess?: () => void;
 }
-
-const ROLES = [
-  { value: 'ADMIN', label: 'ADMINISTRADOR', icon: ShieldCheck },
-  { value: 'MARKETING', label: 'MARKETING', icon: Users },
-  { value: 'VENDEDOR', label: 'VENDEDOR', icon: Briefcase },
-  { value: 'CONTABILIDAD', label: 'CONTABILIDAD', icon: FileSpreadsheet },
-  { value: 'COBRANZAS', label: 'COBRANZAS', icon: Wallet },
-  { value: 'FACTURACION', label: 'FACTURACIÓN', icon: FileText },
-  { value: 'SERVICIO_TECNICO', label: 'SERVICIO TÉCNICO', icon: Wrench }
-]
 
 export default function EditarUsuarioForm({ usuarioId, onFormSuccess }: EditarUsuarioFormProps) {
   const router = useRouter()
@@ -31,6 +21,7 @@ export default function EditarUsuarioForm({ usuarioId, onFormSuccess }: EditarUs
     activo: true 
   })
   const [loading, setLoading] = useState(true)
+  const [roles, setRoles] = useState<string[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -46,16 +37,30 @@ export default function EditarUsuarioForm({ usuarioId, onFormSuccess }: EditarUs
 
   useEffect(() => {
     async function cargar() {
-      const u = await getUsuarioByIdAction(usuarioId)
-      if (u) {
+      try {
+        const [usuario, rolesResponse] = await Promise.all([
+          getUsuarioByIdAction(usuarioId),
+          fetch('/api/admin/permisos')
+        ])
+        const rolesResult = await rolesResponse.json()
+        const rolesAsignables = rolesResult.assignableRoles || rolesResult.roles
+        if (!rolesResponse.ok || !rolesResult.success || !Array.isArray(rolesAsignables)) {
+          throw new Error(rolesResult.message || 'No se pudieron cargar los roles')
+        }
+        if (!usuario) throw new Error('No se encontró el usuario')
+        const rolesDisponibles = rolesAsignables as string[]
+        setRoles(rolesDisponibles)
         setFormData({
-          nombre: u.vendedor?.nombre || u.nombre || '',
-          cedula: u.cedula,
-          rol: u.rol || 'VENDEDOR',
-          activo: u.activo
+          nombre: usuario.vendedor?.nombre || usuario.nombre || '',
+          cedula: usuario.cedula,
+          rol: usuario.rol?.trim().toUpperCase() || rolesDisponibles[0] || '',
+          activo: usuario.activo
         })
+      } catch (error) {
+        Swal.fire('Error', error instanceof Error ? error.message : 'No se pudieron cargar los datos.', 'error')
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
     cargar()
   }, [usuarioId])
@@ -84,7 +89,7 @@ export default function EditarUsuarioForm({ usuarioId, onFormSuccess }: EditarUs
     }
   }
 
-  const currentRol = ROLES.find(r => r.value === formData.rol) || ROLES[2]
+  const currentRol = formData.rol
 
   if (loading) return (
     <div className="p-12 text-center text-[10px] font-black uppercase tracking-[0.4em] text-[#001F3F] animate-pulse">
@@ -157,32 +162,31 @@ export default function EditarUsuarioForm({ usuarioId, onFormSuccess }: EditarUs
               className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-xs text-[#001F3F] transition-all shadow-inner flex items-center justify-between hover:bg-slate-100/50"
             >
               <div className="flex items-center gap-2">
-                <currentRol.icon size={14} className="text-[#FFB800]" />
-                <span className="tracking-wider">{currentRol.label}</span>
+                <ShieldCheck size={14} className="text-[#FFB800]" />
+                <span className="tracking-wider">{currentRol.replace(/_/g, ' ')}</span>
               </div>
               <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#FFB800]' : ''}`} />
             </button>
 
             {isOpen && (
               <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-50">
-                {ROLES.map((rol) => {
-                  const Icon = rol.icon;
+                {roles.map((role) => {
                   return (
                     <button
-                      key={rol.value}
+                      key={role}
                       type="button"
                       onClick={() => {
-                        setFormData({ ...formData, rol: rol.value })
+                        setFormData({ ...formData, rol: role })
                         setIsOpen(false)
                       }}
                       className={`w-full px-5 py-3.5 text-left font-black text-xs transition-colors flex items-center gap-2 tracking-wider ${
-                        formData.rol === rol.value 
+                        formData.rol === role
                           ? 'bg-[#001F3F] text-[#FFB800]' 
                           : 'text-[#001F3F] hover:bg-slate-50/80'
                       }`}
                     >
-                      <Icon size={14} className={formData.rol === rol.value ? 'text-[#FFB800]' : 'text-slate-400'} />
-                      <span>{rol.label}</span>
+                      <ShieldCheck size={14} className={formData.rol === role ? 'text-[#FFB800]' : 'text-slate-400'} />
+                      <span>{role.replace(/_/g, ' ')}</span>
                     </button>
                   )
                 })}

@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
+import { getSessionRole, roleHasPermission } from '@/lib/role-permissions'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -36,6 +37,11 @@ export async function getActiveCampanaId() {
 
 export async function deleteCampana(id: any) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'campanas', 'eliminar')) {
+      return { error: 'No tienes permiso para eliminar campañas.' }
+    }
+
     const premios = await prisma.premio.findMany({
       where: {},
       select: { id: true }
@@ -74,6 +80,11 @@ export async function deleteCampana(id: any) {
 
 export async function createCampana(formData: FormData) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'campanas', 'crear')) {
+      return { error: 'No tienes permiso para crear campañas.' }
+    }
+
     const nombre = formData.get('nombre') as string
     const detalle = formData.get('detalle') as string
     const fechaInicio = formData.get('fecha_inicio') as string
@@ -137,6 +148,11 @@ export async function getCampanaById(id: any) {
 
 export async function updateCampana(id: any, data: any) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'campanas', 'editar')) {
+      return { error: 'No tienes permiso para editar campañas.' }
+    }
+
     if (!id) throw new Error("ID de campaña no proporcionado");
     const idSaneado = typeof id === 'string' && !isNaN(Number(id)) ? parseInt(id) : id;
 

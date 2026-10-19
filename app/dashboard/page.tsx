@@ -5,17 +5,34 @@ import DashboardAdmin from '@/components/dashboard/DashboardAdmin'
 import DashboardMarketing from '@/components/dashboard/DashboardMarketing'
 import DashboardServicioTecnico from '@/app/dashboard/servicio-tecnico/page'
 import DashboardContabilidad from '@/components/dashboard/DashboardContabilidad'
+import { getSessionRole } from '@/lib/role-permissions'
 
 export const dynamic = 'force-dynamic'
+
+function DashboardRolPersonalizado({ role }: { role: string }) {
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] p-6 md:p-12 text-[#001F3F]">
+      <div className="max-w-3xl mx-auto bg-white border border-slate-200 rounded-[2rem] p-8 md:p-12 shadow-sm">
+        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">DITCASH | PANEL DE ACCESO</p>
+        <h1 className="mt-3 text-2xl md:text-3xl font-black uppercase italic tracking-tight">{role.replace(/_/g, ' ')}</h1>
+        <p className="mt-4 text-sm font-medium text-slate-500">
+          Tu acceso está configurado. Usa el menú lateral para abrir los módulos que tienes autorizados.
+        </p>
+      </div>
+    </div>
+  )
+}
 
 export default async function DashboardRaizPage() {
   const cookieStore = await cookies()
   const token = cookieStore.get('user_id')?.value
-  const role = cookieStore.get('user_role')?.value || 'VENDEDOR'
 
   if (!token) {
     redirect('/login')
   }
+
+  const role = await getSessionRole()
+  if (!role) redirect('/login')
 
   try {
     if (role === 'ADMIN') {
@@ -29,11 +46,11 @@ export default async function DashboardRaizPage() {
     }
     
     // Aquí puedes ir mapeando los otros roles cuando crees sus vistas:
-     if (role === 'CONTABILIDAD') return <DashboardContabilidad />
-    // if (role === 'COBRANZAS') return <DashboardCobranzas />
-    // if (role === 'FACTURACION') return <DashboardFacturacion />
+    if (role === 'CONTABILIDAD') return <DashboardContabilidad />
 
-    return <DashboardVendedor />
+    if (role === 'VENDEDOR') return <DashboardVendedor />
+
+    return <DashboardRolPersonalizado role={role} />
 
   } catch (err) {
     console.error("Error en inicialización del dashboard:", err)

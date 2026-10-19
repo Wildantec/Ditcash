@@ -2,6 +2,12 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
+import {
+  getSessionRole,
+  normalizeRoleName,
+  readRolePermissions,
+  roleHasPermission
+} from '@/lib/role-permissions'
 
 async function obtenerTokenAraujo(): Promise<string | null> {
   try {
@@ -59,6 +65,23 @@ export async function crearUsuarioAction(data: {
   rol: string
 }) {
   try {
+    const actorRole = await getSessionRole()
+    if (!actorRole || !await roleHasPermission(actorRole, 'usuarios', 'crear')) {
+      return { success: false, error: 'No tienes permiso para crear usuarios.' }
+    }
+    const assignedRole = normalizeRoleName(data.rol)
+    const [permissions, userRoles] = await Promise.all([
+      readRolePermissions(),
+      prisma.user.findMany({ distinct: ['rol'], select: { rol: true } })
+    ])
+    const availableRoles = new Set([
+      ...permissions.map((permission) => normalizeRoleName(permission.rol)),
+      ...userRoles.map((user) => normalizeRoleName(user.rol))
+    ])
+    if (!availableRoles.has(assignedRole) || (assignedRole === 'ADMIN' && actorRole !== 'ADMIN')) {
+      return { success: false, error: 'No puedes asignar ese rol.' }
+    }
+
     const cedulaLimpia = data.cedula.trim();
     const usernameLimpio = data.username.trim();
     
@@ -70,7 +93,7 @@ export async function crearUsuarioAction(data: {
       return { success: false, error: 'El nombre de usuario o número de cédula ya se encuentra registrado en DITCASH.' };
     }
 
-    if (data.rol === 'VENDEDOR') {
+    if (assignedRole === 'VENDEDOR') {
       const tokenAraujo = await obtenerTokenAraujo();
       if (!tokenAraujo) {
         return { success: false, error: 'Servicio Contable Araujo no disponible temporalmente. Intente más tarde.' };
@@ -95,7 +118,7 @@ export async function crearUsuarioAction(data: {
         cedula: cedulaLimpia,
         password: 'DITCASH_DEFAULT_KEY_123',
         nombre: data.nombreCompleto.toUpperCase(),
-        rol: data.rol,
+        rol: assignedRole,
         estado: 'Activo',
         activo: true
       }
@@ -126,8 +149,21 @@ export async function crearUsuarioAction(data: {
   }
 }
 
+function normalizarVendedorCliente(vendedor: any) {
+  if (!vendedor) return null;
+
+  return {
+    ...vendedor,
+    puntosAcumulados: vendedor.puntosAcumulados != null ? Number(vendedor.puntosAcumulados) : 0,
+    saldoGastado: vendedor.saldoGastado != null ? Number(vendedor.saldoGastado) : 0,
+  };
+}
+
 export async function getUsuariosAction() {
   try {
+    const actorRole = await getSessionRole()
+    if (!actorRole || !await roleHasPermission(actorRole, 'usuarios', 'ver')) return []
+
     const usuarios = await prisma.user.findMany({
       include: {
         vendedor: true
@@ -139,10 +175,7 @@ export async function getUsuariosAction() {
     
     return usuarios.map((u: any) => ({
       ...u,
-      vendedor: u.vendedor ? {
-        ...u.vendedor,
-        puntosAcumulados: u.vendedor.puntosAcumulados ? Number(u.vendedor.puntosAcumulados) : 0
-      } : null
+      vendedor: normalizarVendedorCliente(u.vendedor)
     }))
   } catch (error) {
     return []
@@ -151,6 +184,9 @@ export async function getUsuariosAction() {
 
 export async function getUsuarioByIdAction(id: number) {
   try {
+    const actorRole = await getSessionRole()
+    if (!actorRole || !await roleHasPermission(actorRole, 'usuarios', 'ver')) return null
+
     const usuario = await prisma.user.findUnique({
       where: { id },
       include: { vendedor: true }
@@ -160,10 +196,7 @@ export async function getUsuarioByIdAction(id: number) {
 
     return {
       ...usuario,
-      vendedor: usuario.vendedor ? {
-        ...usuario.vendedor,
-        puntosAcumulados: usuario.vendedor.puntosAcumulados ? Number(usuario.vendedor.puntosAcumulados) : 0
-      } : null
+      vendedor: normalizarVendedorCliente(usuario.vendedor)
     };
   } catch (error) {
     return null;
@@ -172,6 +205,23 @@ export async function getUsuarioByIdAction(id: number) {
 
 export async function actualizarUsuarioAction(id: number, data: any) {
   try {
+    const actorRole = await getSessionRole()
+    if (!actorRole || !await roleHasPermission(actorRole, 'usuarios', 'editar')) {
+      return { success: false, error: 'No tienes permiso para editar usuarios.' }
+    }
+    const assignedRole = normalizeRoleName(data.rol)
+    const [permissions, userRoles] = await Promise.all([
+      readRolePermissions(),
+      prisma.user.findMany({ distinct: ['rol'], select: { rol: true } })
+    ])
+    const availableRoles = new Set([
+      ...permissions.map((permission) => normalizeRoleName(permission.rol)),
+      ...userRoles.map((user) => normalizeRoleName(user.rol))
+    ])
+    if (!availableRoles.has(assignedRole) || (assignedRole === 'ADMIN' && actorRole !== 'ADMIN')) {
+      return { success: false, error: 'No puedes asignar ese rol.' }
+    }
+
     const usuarioConVendedor = await prisma.user.findUnique({
       where: { id },
       include: { vendedor: true }
@@ -179,7 +229,7 @@ export async function actualizarUsuarioAction(id: number, data: any) {
 
     const updateData: any = {
       cedula: data.cedula,
-      rol: data.rol,
+      rol: assignedRole,
       activo: data.activo,
       nombre: data.nombre.toUpperCase()
     };
@@ -206,6 +256,11 @@ export async function actualizarUsuarioAction(id: number, data: any) {
 
 export async function eliminarUsuarioAction(id: number) {
   try {
+    const actorRole = await getSessionRole()
+    if (!actorRole || !await roleHasPermission(actorRole, 'usuarios', 'eliminar')) {
+      return { success: false, error: 'No tienes permiso para eliminar usuarios.' }
+    }
+
     await prisma.user.delete({
       where: { id }
     })

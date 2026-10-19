@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
 import crypto from 'crypto'
+import { getSessionRole, roleHasPermission } from '@/lib/role-permissions'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -81,6 +82,11 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
 }
 export async function revisarEvidenciaAction(id: number, aprobado: boolean, motivo?: string) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'vendedores', 'editar')) {
+      return { error: 'No tienes permiso para editar auditorías de vendedores.' }
+    }
+
     const evidencia = await prisma.evidencia.findUnique({
       where: { id },
       include: { vendedor: true }
@@ -180,6 +186,9 @@ export async function getMisEvidencias(campanaId: number) {
 
 export async function getEvidenciasByVendedor(vendedorId: number) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'vendedores', 'ver')) return []
+
     const data = await prisma.evidencia.findMany({
       where: { vendedorId: parseInt(vendedorId.toString()) },
       include: { campana: { select: { nombre: true } } },
@@ -195,6 +204,11 @@ export async function getEvidenciasByVendedor(vendedorId: number) {
 
 export async function eliminarEvidenciaAction(id: number) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'vendedores', 'eliminar')) {
+      return { error: 'No tienes permiso para eliminar auditorías de vendedores.' }
+    }
+
     await prisma.evidencia.delete({ where: { id } })
     revalidatePath('/dashboard/admin/vendedores')
     return { success: true }

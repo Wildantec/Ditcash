@@ -118,5 +118,221 @@
     "crear": false,
     "editar": false,
     "eliminar": false
+  },
+  {
+    "rol": "VENDEDOR",
+    "modulo": "campanas",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "VENDEDOR",
+    "modulo": "premios",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "VENDEDOR",
+    "modulo": "inventario",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "MARKETING",
+    "modulo": "vendedores",
+    "ver": true,
+    "crear": false,
+    "editar": true,
+    "eliminar": true
+  },
+  {
+    "rol": "MARKETING",
+    "modulo": "campanas",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "MARKETING",
+    "modulo": "canjes",
+    "ver": true,
+    "crear": false,
+    "editar": true,
+    "eliminar": false
+  },
+  {
+    "rol": "MARKETING",
+    "modulo": "historial",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "MARKETING",
+    "modulo": "premios",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "MARKETING",
+    "modulo": "inventario",
+    "ver": true,
+    "crear": true,
+    "editar": true,
+    "eliminar": false
+  },
+  {
+    "rol": "SERVICIO_TECNICO",
+    "modulo": "vehiculos",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "SERVICIO_TECNICO",
+    "modulo": "estaciones",
+    "ver": true,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "vendedores",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "campanas",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "canjes",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "historial",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "premios",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "inventario",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "bodegas",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "vehiculos",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "mantenimientos",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "vehiculos_cont",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "estaciones",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "facturas_comb",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "facturacion",
+    "ver": true,
+    "crear": true,
+    "editar": true,
+    "eliminar": true
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "cobranzas",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "usuarios",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
+  },
+  {
+    "rol": "FACTURACION",
+    "modulo": "permisos",
+    "ver": false,
+    "crear": false,
+    "editar": false,
+    "eliminar": false
   }
 ]

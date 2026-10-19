@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
 import { cookies } from 'next/headers'
+import { getSessionRole, roleHasPermission } from '@/lib/role-permissions'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -31,6 +32,11 @@ async function uploadToCloudinary(buffer: Buffer, folder: string) {
 
 export async function crearPremioAction(formData: FormData) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'premios', 'crear')) {
+      return { error: 'No tienes permiso para crear premios.' }
+    }
+
     const nombre = formData.get('nombre') as string
     const descripcion = formData.get('descripcion') as string
     const file = formData.get('foto') as File
@@ -71,6 +77,11 @@ export async function crearPremioAction(formData: FormData) {
 
 export async function actualizarPremioAction(id: number, formData: FormData) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'premios', 'editar')) {
+      return { error: 'No tienes permiso para editar premios.' }
+    }
+
     const puntosRaw = formData.get('puntos') ?? formData.get('valor')
     const puntos = puntosRaw ? parseFloat(puntosRaw.toString()) : 0.0
     const nombre = formData.get('nombre') as string
@@ -106,6 +117,9 @@ export async function actualizarPremioAction(id: number, formData: FormData) {
 
 export async function getSolicitudesCanje() {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'canjes', 'ver')) return []
+
     return await prisma.canje.findMany({
       where: { estado: 'pendiente' },
       include: {
@@ -121,6 +135,11 @@ export async function getSolicitudesCanje() {
 
 export async function gestionarCanjeAction(canjeId: number, aprobado: boolean) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'canjes', 'editar')) {
+      return { error: 'No tienes permiso para gestionar canjes.' }
+    }
+
     const canje = await prisma.canje.findUnique({
       where: { id: canjeId },
       include: { premio: true, vendedor: true }
@@ -226,6 +245,11 @@ export async function getPremios() {
 
 export async function eliminarPremioAction(id: number) {
   try {
+    const role = await getSessionRole()
+    if (!role || !await roleHasPermission(role, 'premios', 'eliminar')) {
+      return { success: false, error: 'No tienes permiso para eliminar premios.' }
+    }
+
     const premio = await prisma.premio.findUnique({ where: { id } })
     if (premio?.publicId) await cloudinary.uploader.destroy(premio.publicId)
     await prisma.premio.delete({ where: { id } })
