@@ -30,6 +30,12 @@ export async function getVendedorByUsuarioId(usuarioId: number) {
       where: { usuarioId: usuarioId }
     })
     return vendedor
+      ? {
+          ...vendedor,
+          puntosAcumulados: Number(vendedor.puntosAcumulados),
+          saldoGastado: Number(vendedor.saldoGastado)
+        }
+      : null
   } catch (error) {
     return null
   }
@@ -71,6 +77,7 @@ export async function getVendedoresRanking() {
       return {
         ...v,
         puntosAcumulados: saldoDisponibleReal,
+        saldoGastado: Number(v.saldoGastado),
         evidencias: v.evidencias 
       }
     })

@@ -115,7 +115,7 @@ export default function EditarUsuarioForm({ usuarioId, onFormSuccess }: EditarUs
         if (onFormSuccess) {
           onFormSuccess()
         } else {
-          router.push('/dashboard/admin/usuarios')
+          router.push('/dashboard/usuarios')
           router.refresh()
         }
       })

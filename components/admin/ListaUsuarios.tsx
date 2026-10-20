@@ -1,7 +1,8 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ShieldCheck, User as UserIcon, Briefcase, Users, Eye, Pencil, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { ShieldCheck, Briefcase, Users, Eye, Pencil, Trash2, X } from 'lucide-react'
 import Swal from 'sweetalert2'
 import { eliminarUsuarioAction } from '@/app/actions/usuarios'
 import { tienePermiso } from '@/lib/permisos'
@@ -12,8 +13,24 @@ interface ListaUsuariosProps {
   onVerDetalle?: (user: any) => void
 }
 
+interface UsuarioDetalle {
+  vendedor?: {
+    nombre?: string | null
+    puntosAcumulados?: number | null
+    saldoGastado?: number | null
+  } | null
+  nombre?: string | null
+  cedula?: string | null
+  username?: string | null
+  role?: { nombre: string } | null
+  rol?: string | null
+  activo?: boolean
+  createdAt?: Date | string | null
+}
+
 export default function ListaUsuarios({ usuarios, usuarioSesion, onVerDetalle }: ListaUsuariosProps) {
   const router = useRouter()
+  const [usuarioDetalle, setUsuarioDetalle] = useState<UsuarioDetalle | null>(null)
 
   const permisosSesion = usuarioSesion?.role?.permisos || usuarioSesion?.permisos || []
   const rolNombreSesion = usuarioSesion?.role?.nombre || usuarioSesion?.rol || ''
@@ -149,7 +166,10 @@ export default function ListaUsuarios({ usuarios, usuarioSesion, onVerDetalle }:
                         {/* Icono Ver */}
                         {puedeVer && (
                           <button
-                            onClick={() => onVerDetalle && onVerDetalle(user)}
+                            onClick={() => {
+                              if (onVerDetalle) onVerDetalle(user)
+                              else setUsuarioDetalle(user)
+                            }}
                             className="p-2 text-[#001F3F] hover:text-[#FFB800] hover:bg-slate-100 rounded-lg transition-colors"
                             title="Ver Detalle"
                           >
@@ -185,6 +205,74 @@ export default function ListaUsuarios({ usuarios, usuarioSesion, onVerDetalle }:
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {usuarioDetalle && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={() => setUsuarioDetalle(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detalle-usuario-titulo"
+            className="relative w-full max-w-lg rounded-[2rem] bg-white p-7 text-left shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setUsuarioDetalle(null)}
+              className="absolute right-5 top-5 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500"
+              aria-label="Cerrar detalle"
+            >
+              <X size={18} />
+            </button>
+            <h2 id="detalle-usuario-titulo" className="mb-6 pr-10 text-lg font-black uppercase text-[#001F3F]">
+              Detalle del usuario
+            </h2>
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nombre</dt>
+                <dd className="mt-1 text-sm font-bold uppercase">{usuarioDetalle.vendedor?.nombre || usuarioDetalle.nombre || 'Sin nombre'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cédula</dt>
+                <dd className="mt-1 text-sm font-bold">{usuarioDetalle.cedula || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Usuario</dt>
+                <dd className="mt-1 text-sm font-bold">{usuarioDetalle.username || '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Rol</dt>
+                <dd className="mt-1 text-sm font-bold uppercase">{obtenerNombreRol(usuarioDetalle)}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Estado</dt>
+                <dd className={`mt-1 text-sm font-bold uppercase ${usuarioDetalle.activo ? 'text-emerald-600' : 'text-red-500'}`}>
+                  {usuarioDetalle.activo ? 'Activo' : 'Inactivo'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fecha de registro</dt>
+                <dd className="mt-1 text-sm font-bold">
+                  {usuarioDetalle.createdAt ? new Date(usuarioDetalle.createdAt).toLocaleDateString() : '—'}
+                </dd>
+              </div>
+              {usuarioDetalle.vendedor && (
+                <>
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Puntos acumulados</dt>
+                    <dd className="mt-1 text-sm font-bold">${Number(usuarioDetalle.vendedor.puntosAcumulados || 0).toFixed(2)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-widest text-slate-400">Saldo gastado</dt>
+                    <dd className="mt-1 text-sm font-bold">${Number(usuarioDetalle.vendedor.saldoGastado || 0).toFixed(2)}</dd>
+                  </div>
+                </>
+              )}
+            </dl>
+          </section>
         </div>
       )}
     </div>
