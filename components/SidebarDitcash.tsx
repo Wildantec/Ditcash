@@ -6,23 +6,13 @@ import { useEffect, useState } from 'react'
 import { logoutAction } from '@/app/actions/login'
 import { 
   BarChart3, Gift, ChevronDown, LogOut, Menu, X, Fuel, 
-  Settings, Wrench, Search
+  Settings, Wrench, Search, FileText
 } from 'lucide-react'
 
 interface SidebarProps {
   role: 'ADMIN' | 'MARKETING' | 'VENDEDOR' | 'CONTABILIDAD' | 'COBRANZAS' | 'FACTURACION' | 'SERVICIO_TECNICO' | string
   permisos?: any[] | null
 }
-
-const MODULOS_POR_DEFECTO: { [key: string]: string[] } = {
-  VENDEDOR: ['campanas', 'premios', 'inventario'],
-  MARKETING: ['vendedores', 'campanas', 'canjes', 'historial', 'premios', 'inventario'],
-  CONTABILIDAD: ['estaciones', 'facturas_comb', 'vehiculos'],
-  SERVICIO_TECNICO: ['vehiculos', 'estaciones'],
-  COBRANZAS: [],
-  FACTURACION: [],
-  ADMIN: []
-};
 
 export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProps) {
   const pathname = usePathname()
@@ -32,6 +22,7 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
     operaciones: false,
     incentivos: false,
     contabilidad: false,
+    finanzas: false,
     servicio_tecnico: false,
     configuracion: false
   })
@@ -39,6 +30,8 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
   useEffect(() => {
     if (pathname.includes('/combustible/')) {
       setOpenSections(prev => ({ ...prev, contabilidad: true }))
+    } else if (pathname.startsWith('/dashboard/facturacion')) {
+      setOpenSections(prev => ({ ...prev, finanzas: true }))
     } else if (pathname.includes('/servicio-tecnico/')) {
       setOpenSections(prev => ({ ...prev, servicio_tecnico: true }))
     } else if (pathname.includes('/vendedores') || pathname.includes('/campanas') || pathname.includes('/canjes')) {
@@ -54,13 +47,9 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
 
   const tieneAccAccessModulo = (moduloId: string) => {
     if (role === 'ADMIN') return true
-
-    if (permisos && Array.isArray(permisos) && permisos.length > 0) {
-      const permisoEncontrado = permisos.find((p: any) => p.modulo === moduloId)
-      return permisoEncontrado ? !!permisoEncontrado.ver : false
-    }
-    const modulosFijos = MODULOS_POR_DEFECTO[role] || []
-    return modulosFijos.includes(moduloId)
+    if (!Array.isArray(permisos)) return false
+    const permisoEncontrado = permisos.find((p: any) => p && p.modulo === moduloId)
+    return permisoEncontrado?.ver === true
   }
 
   const toggleSection = (id: string) => {
@@ -101,6 +90,14 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
       ]
     },
     {
+      id: 'finanzas',
+      label: 'Facturación',
+      icon: FileText,
+      submodulos: [
+        { href: '/dashboard/facturacion', label: 'Evaluación Comercial', permisoKey: 'facturacion' }
+      ]
+    },
+    {
       id: 'servicio_tecnico',
       label: 'Servicio Técnico',
       icon: Wrench,
@@ -114,7 +111,7 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
       icon: Settings,
       submodulos: [
         { href: '/dashboard/usuarios', label: 'Gestión Usuarios', permisoKey: 'usuarios' },
-        { href: '/dashboard/permisos', label: 'Roles y Permisos', permisoKey: 'permisos' }
+        { href: '/dashboard/permisos', label: 'Roles y Permisos', permisoKey: 'roles' }
       ]
     }
   ]

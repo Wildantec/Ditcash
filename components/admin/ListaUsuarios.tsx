@@ -16,7 +16,7 @@ export default function ListaUsuarios({ usuarios, usuarioSesion, onVerDetalle }:
   const router = useRouter()
 
   const permisosSesion = usuarioSesion?.role?.permisos || usuarioSesion?.permisos || []
-  const rolNombreSesion = usuarioSesion?.role?.nombre || usuarioSesion?.rol || 'ADMIN'
+  const rolNombreSesion = usuarioSesion?.role?.nombre || usuarioSesion?.rol || ''
 
   const puedeVer = tienePermiso(permisosSesion, rolNombreSesion, 'usuarios', 'ver')
   const puedeEditar = tienePermiso(permisosSesion, rolNombreSesion, 'usuarios', 'editar')
@@ -41,7 +41,7 @@ export default function ListaUsuarios({ usuarios, usuarioSesion, onVerDetalle }:
 
     if (isConfirmed) {
       try {
-        const res = await eliminarUsuarioAction(id, usuarioSesion?.id)
+        const res = await eliminarUsuarioAction(id)
         if (res.success) {
           Swal.fire({
             title: '<span style="font-size:16px; font-weight:bold; text-transform:uppercase; color:#001F3F;">ELIMINADO</span>',

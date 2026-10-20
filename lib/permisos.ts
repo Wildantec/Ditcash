@@ -12,12 +12,12 @@ export function tienePermiso(
   moduloId: string,
   accion: 'ver' | 'crear' | 'editar' | 'eliminar'
 ): boolean {
-  if (rolNombre?.toUpperCase() === 'ADMIN' || !rolNombre) return true
+  if (rolNombre?.trim().toUpperCase() === 'ADMIN') return true
 
   if (!permisos || !Array.isArray(permisos)) return false
 
-  const permisoObj = permisos.find((p) => p.modulo === moduloId)
-  if (!permisoObj) return false
+  const permisoObj = permisos.find((p) => p && typeof p === 'object' && p.modulo === moduloId)
+  if (!permisoObj || typeof permisoObj[accion] !== 'boolean') return false
 
-  return !!permisoObj[accion]
+  return permisoObj[accion]
 }

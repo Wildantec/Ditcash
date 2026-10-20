@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
+import { redirect } from 'next/navigation'
 import TablaInventario from './TablaInventario'
 import { Package } from 'lucide-react'
 
@@ -95,8 +96,9 @@ async function obtenerProductosDeAraujos() {
 }
 
 export default async function InventarioPage() {
-  const cookieStore = await cookies()
-  const userId = cookieStore.get('user_id')?.value || ''
+  const usuarioLocal = await getCurrentUser()
+  if (!usuarioLocal) redirect('/login')
+  if (!userHasPermission(usuarioLocal, 'inventario', 'ver')) redirect('/dashboard')
   
   const [bodegasAraujos, configsLocales, productosAraujos, bannersLocales] = await Promise.all([
     obtenerBodegasDeAraujos(),
@@ -105,8 +107,7 @@ export default async function InventarioPage() {
     prisma.productAdvertisement.findMany({ where: { isActive: true } })
   ])
   
-  const usuarioLocal = await prisma.user.findUnique({ where: { id: parseInt(userId) } })
-  const rolUsuario = usuarioLocal?.rol || 'VENDEDOR'
+  const rolUsuario = usuarioLocal.role?.nombre || usuarioLocal.rol || 'VENDEDOR'
   const nombreVendedor = usuarioLocal?.nombre || 'VENDEDOR REQUISITOS'
   
   const bodegasMapeadasParaTabla = bodegasAraujos.map((bod: any) => {

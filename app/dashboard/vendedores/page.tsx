@@ -1,14 +1,14 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
 import GestionVendedoresConAuditoria from '@/components/vendedores/GestionVendedoresConAuditoria';
 
 export const dynamic = 'force-dynamic';
 
 export default async function VendedoresAuditoriaPage() {
-  const cookieStore = await cookies();
-  const role = cookieStore.get('user_role')?.value || 'VENDEDOR';
+  const usuario = await getCurrentUser()
+  if (!usuario) redirect('/login')
 
-  if (role !== 'ADMIN' && role !== 'MARKETING') {
+  if (!userHasPermission(usuario, 'vendedores', 'ver')) {
     redirect('/dashboard');
   }
 

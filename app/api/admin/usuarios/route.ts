@@ -1,30 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { cookies } from 'next/headers'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { currentUserHasPermission, getCurrentUser, permissionsAreWithinGrant } from '@/lib/authorization'
 
 export const dynamic = 'force-dynamic'
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
-  try {
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return false
-
-    const usuario = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
-      include: { role: true }
-    })
-
-    if (!usuario) return false
-
-    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
-    const rolNombre = usuario.role?.nombre || usuario.rol
-
-    return tienePermiso(permisos, rolNombre, moduloId, accion)
-  } catch (error) {
-    return false
-  }
+  return currentUserHasPermission(moduloId, accion)
 }
 
 export async function POST(req: Request) {
@@ -37,10 +18,28 @@ export async function POST(req: Request) {
       )
     }
 
-    const { nombre, cedula, password, rol, roleId } = await req.json()
+    const { nombre, cedula, password, roleId } = await req.json()
 
-    if (!cedula || !password || !nombre) {
+    if (!cedula || typeof password !== 'string' || password.length < 8 || !nombre || !Number.isSafeInteger(Number(roleId)) || Number(roleId) <= 0) {
       return NextResponse.json({ error: 'Faltan campos obligatorios' }, { status: 400 })
+    }
+    const usuarioActual = await getCurrentUser()
+    const rolAsignado = await prisma.role.findUnique({ where: { id: Number(roleId) } })
+    if (!rolAsignado) {
+      return NextResponse.json({ error: 'El rol seleccionado no existe.' }, { status: 400 })
+    }
+    const esAdmin = (usuarioActual?.role?.nombre || usuarioActual?.rol || '').trim().toUpperCase() === 'ADMIN'
+    if (rolAsignado.nombre.toUpperCase() === 'ADMIN' && !esAdmin) {
+      return NextResponse.json({ error: 'Solo un administrador puede asignar el rol ADMIN.' }, { status: 403 })
+    }
+    if (
+      !esAdmin &&
+      !permissionsAreWithinGrant(
+        rolAsignado.permisos,
+        usuarioActual?.role?.permisos
+      )
+    ) {
+      return NextResponse.json({ error: 'No puedes asignar un rol con más permisos que los que tienes.' }, { status: 403 })
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)
@@ -52,12 +51,12 @@ export async function POST(req: Request) {
           cedula,
           password: hashedPassword,
           nombre,
-          rol: rol || 'VENDEDOR',
-          ...(roleId ? { roleId: Number(roleId) } : {})
+          rol: rolAsignado.nombre,
+          roleId: rolAsignado.id
         },
       })
 
-      if (rol === 'VENDEDOR') {
+      if (rolAsignado.nombre === 'VENDEDOR') {
         await tx.vendedor.create({
           data: {
             cedula,
@@ -70,7 +69,17 @@ export async function POST(req: Request) {
       return newUser
     })
 
-    return NextResponse.json({ success: true, user: result })
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: result.id,
+        username: result.username,
+        cedula: result.cedula,
+        nombre: result.nombre,
+        rol: result.rol,
+        roleId: result.roleId
+      }
+    })
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Error al crear el usuario' }, { status: 500 })
   }

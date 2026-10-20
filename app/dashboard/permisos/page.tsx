@@ -55,7 +55,7 @@ const ESTRUCTURA_PERMISOS = [
     label: 'Finanzas',
     icon: FileText,
     submodulos: [
-      { id: 'facturacion', label: 'Emisión de Facturas' },
+      { id: 'facturacion', label: 'Facturación Comercial' },
       { id: 'cobranzas', label: 'Gestión de Cartera' }
     ]
   },
@@ -64,7 +64,8 @@ const ESTRUCTURA_PERMISOS = [
     label: 'Configuración',
     icon: Settings,
     submodulos: [
-      { id: 'usuarios', label: 'Gestión Usuarios' }
+      { id: 'usuarios', label: 'Gestión Usuarios' },
+      { id: 'roles', label: 'Gestión de Roles y Permisos' }
     ]
   }
 ];

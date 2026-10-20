@@ -2,20 +2,23 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import bcrypt from 'bcryptjs'
+import { getCurrentUser, permissionsAreWithinGrant, userHasPermission } from '@/lib/authorization'
 
-async function validarPermisoUsuarioActual(usuarioEjecutorId: number, moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
-  if (!usuarioEjecutorId) return true
-
-  const usuario = await prisma.user.findUnique({
-    where: { id: usuarioEjecutorId },
-    include: { role: true }
-  })
-
-  if (!usuario) return false
-
-  const permisosObj = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
-  return tienePermiso(permisosObj, usuario.role?.nombre || usuario.rol, moduloId, accion)
+export async function getCurrentUserAccessAction() {
+  const usuario = await getCurrentUser()
+  if (!usuario) return null
+  return {
+    id: usuario.id,
+    rol: usuario.rol,
+    role: usuario.role
+      ? {
+          id: usuario.role.id,
+          nombre: usuario.role.nombre,
+          permisos: usuario.role.permisos
+        }
+      : null
+  }
 }
 
 async function obtenerTokenAraujo(): Promise<string | null> {
@@ -71,16 +74,33 @@ export async function crearUsuarioAction(data: {
   username: string
   cedula: string
   nombreCompleto: string
+  password: string
   rol: string
-  roleId?: number
-  usuarioEjecutorId?: number
+  roleId: number
 }) {
   try {
-    if (data.usuarioEjecutorId) {
-      const autorizado = await validarPermisoUsuarioActual(data.usuarioEjecutorId, 'usuarios', 'crear');
-      if (!autorizado) {
-        return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para CREAR usuarios.' };
-      }
+    const usuarioEjecutor = await getCurrentUser()
+    if (!userHasPermission(usuarioEjecutor, 'usuarios', 'crear')) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para CREAR usuarios.' }
+    }
+
+    const rolAsignado = await prisma.role.findUnique({ where: { id: Number(data.roleId) } })
+    if (!rolAsignado) return { success: false, error: 'El rol seleccionado no existe.' }
+    if (typeof data.password !== 'string' || data.password.length < 8) {
+      return { success: false, error: 'La contraseña debe tener al menos 8 caracteres.' }
+    }
+    const esAdmin = (usuarioEjecutor?.role?.nombre || usuarioEjecutor?.rol || '').trim().toUpperCase() === 'ADMIN'
+    if (rolAsignado.nombre.toUpperCase() === 'ADMIN' && !esAdmin) {
+      return { success: false, error: 'Solo un administrador puede asignar el rol ADMIN.' }
+    }
+    if (
+      !esAdmin &&
+      !permissionsAreWithinGrant(
+        rolAsignado.permisos,
+        usuarioEjecutor?.role?.permisos
+      )
+    ) {
+      return { success: false, error: 'No puedes asignar un rol con más permisos que los que tienes.' }
     }
 
     const cedulaLimpia = data.cedula.trim();
@@ -101,7 +121,8 @@ export async function crearUsuarioAction(data: {
       return { success: false, error: 'El nombre de usuario o número de cédula ya se encuentra registrado en DITCASH.' };
     }
 
-    if (data.rol === 'VENDEDOR') {
+    const rolNombre = rolAsignado.nombre
+    if (rolNombre === 'VENDEDOR') {
       const tokenAraujo = await obtenerTokenAraujo();
       if (!tokenAraujo) {
         return { success: false, error: 'Servicio Contable Araujo no disponible temporalmente. Intente más tarde.' };
@@ -120,36 +141,39 @@ export async function crearUsuarioAction(data: {
       }
     }
 
-    const nuevoUsuario = await prisma.user.create({
-      data: {
-        username: usernameLimpio,
-        cedula: cedulaLimpia,
-        password: 'DITCASH_DEFAULT_KEY_123',
-        nombre: data.nombreCompleto.toUpperCase(),
-        rol: data.rol.toUpperCase(),
-        roleId: data.roleId ? Number(data.roleId) : undefined,
-        estado: 'Activo',
-        activo: true
-      }
-    });
-
-    if (data.rol === 'VENDEDOR') {
-      const partesNombre = data.nombreCompleto.split(' ');
-      const primerNombre = partesNombre[0] || 'VENDEDOR';
-      const primerApellido = partesNombre.slice(1).join(' ') || 'ARAUJO';
-
-      await prisma.vendedor.create({
+    await prisma.$transaction(async (tx) => {
+      const passwordHash = await bcrypt.hash(data.password, 12)
+      const nuevoUsuario = await tx.user.create({
         data: {
+          username: usernameLimpio,
           cedula: cedulaLimpia,
-          nombre: primerNombre.toUpperCase(),
-          apellido: primerApellido.toUpperCase(),
-          puntosAcumulados: 0.00,
-          saldoGastado: 0.00,
-          activo: true,
-          usuarioId: nuevoUsuario.id
+          password: passwordHash,
+          nombre: data.nombreCompleto.toUpperCase(),
+          rol: rolNombre,
+          roleId: rolAsignado.id,
+          estado: 'Activo',
+          activo: true
         }
-      });
-    }
+      })
+
+      if (rolNombre === 'VENDEDOR') {
+        const partesNombre = data.nombreCompleto.split(' ')
+        const primerNombre = partesNombre[0] || 'VENDEDOR'
+        const primerApellido = partesNombre.slice(1).join(' ') || 'ARAUJO'
+
+        await tx.vendedor.create({
+          data: {
+            cedula: cedulaLimpia,
+            nombre: primerNombre.toUpperCase(),
+            apellido: primerApellido.toUpperCase(),
+            puntosAcumulados: 0.00,
+            saldoGastado: 0.00,
+            activo: true,
+            usuarioId: nuevoUsuario.id
+          }
+        })
+      }
+    })
 
     revalidatePath('/dashboard/admin/usuarios');
     revalidatePath('/dashboard/usuarios');
@@ -161,6 +185,11 @@ export async function crearUsuarioAction(data: {
 
 export async function getUsuariosAction() {
   try {
+    const usuario = await getCurrentUser()
+    if (!userHasPermission(usuario, 'usuarios', 'ver')) {
+      throw new Error('Acceso Denegado: Tu rol no tiene permisos para consultar usuarios.')
+    }
+
     const usuarios = await prisma.user.findMany({
       include: {
         vendedor: true,
@@ -171,20 +200,40 @@ export async function getUsuariosAction() {
       }
     })
     
-    return usuarios.map((u: any) => ({
-      ...u,
+    return usuarios.map((u) => ({
+      id: u.id,
+      username: u.username,
+      cedula: u.cedula,
+      nombre: u.nombre,
+      rol: u.rol,
+      roleId: u.roleId,
+      role: u.role,
+      estado: u.estado,
+      activo: u.activo,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
       vendedor: u.vendedor ? {
         ...u.vendedor,
-        puntosAcumulados: u.vendedor.puntosAcumulados ? Number(u.vendedor.puntosAcumulados) : 0
+        puntosAcumulados: Number(u.vendedor.puntosAcumulados),
+        saldoGastado: Number(u.vendedor.saldoGastado)
       } : null
     }))
   } catch (error) {
-    return []
+    console.error('Error consultando usuarios:', error)
+    throw error
   }
 }
 
 export async function getUsuarioByIdAction(id: number) {
   try {
+    const usuarioActual = await getCurrentUser()
+    if (
+      !userHasPermission(usuarioActual, 'usuarios', 'ver') &&
+      !userHasPermission(usuarioActual, 'usuarios', 'editar')
+    ) {
+      throw new Error('Acceso Denegado: Tu rol no puede consultar este usuario.')
+    }
+
     const usuario = await prisma.user.findUnique({
       where: { id },
       include: { 
@@ -196,24 +245,34 @@ export async function getUsuarioByIdAction(id: number) {
     if (!usuario) return null;
 
     return {
-      ...usuario,
+      id: usuario.id,
+      username: usuario.username,
+      cedula: usuario.cedula,
+      nombre: usuario.nombre,
+      rol: usuario.rol,
+      roleId: usuario.roleId,
+      role: usuario.role,
+      estado: usuario.estado,
+      activo: usuario.activo,
+      createdAt: usuario.createdAt,
+      updatedAt: usuario.updatedAt,
       vendedor: usuario.vendedor ? {
         ...usuario.vendedor,
-        puntosAcumulados: usuario.vendedor.puntosAcumulados ? Number(usuario.vendedor.puntosAcumulados) : 0
+        puntosAcumulados: Number(usuario.vendedor.puntosAcumulados),
+        saldoGastado: Number(usuario.vendedor.saldoGastado)
       } : null
     };
   } catch (error) {
-    return null;
+    console.error('Error consultando usuario:', error)
+    throw error
   }
 }
 
-export async function actualizarUsuarioAction(id: number, data: any, usuarioEjecutorId?: number) {
+export async function actualizarUsuarioAction(id: number, data: any) {
   try {
-    if (usuarioEjecutorId) {
-      const autorizado = await validarPermisoUsuarioActual(usuarioEjecutorId, 'usuarios', 'editar');
-      if (!autorizado) {
-        return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EDITAR usuarios.' };
-      }
+    const usuarioEjecutor = await getCurrentUser()
+    if (!userHasPermission(usuarioEjecutor, 'usuarios', 'editar')) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para EDITAR usuarios.' }
     }
 
     const cedulaLimpia = data.cedula ? String(data.cedula).trim() : '';
@@ -229,13 +288,39 @@ export async function actualizarUsuarioAction(id: number, data: any, usuarioEjec
 
     const usuarioConVendedor = await prisma.user.findUnique({
       where: { id },
-      include: { vendedor: true }
+      include: { vendedor: true, role: true }
     });
+    if (!usuarioConVendedor) return { success: false, error: 'El usuario seleccionado no existe.' }
 
+    const esAdmin = (usuarioEjecutor?.role?.nombre || usuarioEjecutor?.rol || '').trim().toUpperCase() === 'ADMIN'
+    if ((usuarioConVendedor.role?.nombre || usuarioConVendedor.rol).trim().toUpperCase() === 'ADMIN' && !esAdmin) {
+      return { success: false, error: 'Solo un administrador puede modificar una cuenta ADMIN.' }
+    }
+
+    let rolAsignado = null
+    if (data.roleId !== undefined && data.roleId !== null) {
+      rolAsignado = await prisma.role.findUnique({ where: { id: Number(data.roleId) } })
+      if (!rolAsignado) return { success: false, error: 'El rol seleccionado no existe.' }
+      if (rolAsignado.nombre.toUpperCase() === 'ADMIN' && !esAdmin) {
+        return { success: false, error: 'Solo un administrador puede asignar el rol ADMIN.' }
+      }
+      if (
+        !esAdmin &&
+        !permissionsAreWithinGrant(
+          rolAsignado.permisos,
+          usuarioEjecutor?.role?.permisos
+        )
+      ) {
+        return { success: false, error: 'No puedes asignar un rol con más permisos que los que tienes.' }
+      }
+    }
+    if (data.roleId === null) {
+      return { success: false, error: 'El usuario debe tener un rol asignado.' }
+    }
     const updateData: any = {
       cedula: cedulaLimpia || undefined,
-      rol: data.rol ? data.rol.toUpperCase() : undefined,
-      roleId: data.roleId ? Number(data.roleId) : undefined,
+      rol: rolAsignado?.nombre,
+      roleId: rolAsignado?.id,
       activo: data.activo,
       nombre: data.nombre ? data.nombre.toUpperCase() : undefined
     };
@@ -262,13 +347,19 @@ export async function actualizarUsuarioAction(id: number, data: any, usuarioEjec
   }
 }
 
-export async function eliminarUsuarioAction(id: number, usuarioEjecutorId?: number) {
+export async function eliminarUsuarioAction(id: number) {
   try {
-    if (usuarioEjecutorId) {
-      const autorizado = await validarPermisoUsuarioActual(usuarioEjecutorId, 'usuarios', 'eliminar');
-      if (!autorizado) {
-        return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para ELIMINAR usuarios.' };
-      }
+    const usuarioEjecutor = await getCurrentUser()
+    if (!userHasPermission(usuarioEjecutor, 'usuarios', 'eliminar')) {
+      return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para ELIMINAR usuarios.' }
+    }
+
+    const objetivo = await prisma.user.findUnique({ where: { id }, include: { role: true } })
+    if (!objetivo) return { success: false, error: 'El usuario seleccionado no existe.' }
+    const esAdmin = (usuarioEjecutor?.role?.nombre || usuarioEjecutor?.rol || '').trim().toUpperCase() === 'ADMIN'
+    if (objetivo.id === usuarioEjecutor?.id) return { success: false, error: 'No puedes eliminar tu propia cuenta.' }
+    if ((objetivo.role?.nombre || objetivo.rol).trim().toUpperCase() === 'ADMIN' && !esAdmin) {
+      return { success: false, error: 'Solo un administrador puede eliminar una cuenta ADMIN.' }
     }
 
     await prisma.user.delete({

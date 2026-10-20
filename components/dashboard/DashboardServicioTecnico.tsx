@@ -1,27 +1,10 @@
 import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
 import { Wrench, Car, AlertTriangle, Calendar, ClipboardList, ShieldAlert } from 'lucide-react'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
 
 export default async function DashboardServicioTecnico() {
-  const cookieStore = await cookies()
-  const userIdRaw = cookieStore.get('user_id')?.value
-
-  let permisosSesion: PermisoModulo[] = []
-  let rolNombreSesion = 'ADMIN'
-
-  if (userIdRaw) {
-    const usuarioBD = await prisma.user.findUnique({
-      where: { id: parseInt(userIdRaw) },
-      include: { role: true }
-    })
-    if (usuarioBD) {
-      permisosSesion = (usuarioBD.role?.permisos as unknown as PermisoModulo[]) || []
-      rolNombreSesion = usuarioBD.role?.nombre || usuarioBD.rol || 'ADMIN'
-    }
-  }
-
-  const puedeVerServicioTecnico = tienePermiso(permisosSesion, rolNombreSesion, 'vehiculos', 'ver')
+  const usuario = await getCurrentUser()
+  const puedeVerServicioTecnico = userHasPermission(usuario, 'vehiculos', 'ver')
 
   if (!puedeVerServicioTecnico) {
     return (

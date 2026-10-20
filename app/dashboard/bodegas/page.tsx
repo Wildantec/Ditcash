@@ -21,37 +21,12 @@ export default function AdminBodegasPage() {
     async function sincronizarLocaciones() {
       try {
         setCargando(true)
-        const API_BASE = "https://grupoaraujos.cloud/api/v1"
-        const tokenResponse = await fetch(`${API_BASE}/auth/login`, {
-          method: 'POST',
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: "soporte@disar-ec.com", password: "admin123" }),
-        })
-        if (!tokenResponse.ok) return
-        const tokenData = await tokenResponse.json()
-        const token = tokenData.data?.access_token || tokenData.access_token
-        
-        const res = await fetch(`${API_BASE}/warehouses/`, {
-          method: 'GET',
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}`, "x-company-id": "1", "User-Agent": "Mozilla/5.0" }
-        })
-        if (!res.ok) return
-        const json = await res.json()
-        const bodegasAraujos = json.data || []
-
-        const resLocal = await fetch('/api/admin/permisos')
-        const jsonLocal = await resLocal.json()
-        const configsLocales = Array.isArray(jsonLocal.data) ? jsonLocal.data : []
-
-        const consolidadas = bodegasAraujos.map((bod: any) => {
-          const configLocal = configsLocales.find((c: any) => c.modulo === `bodega_${bod.id}`)
-          return {
-            id: bod.id.toString(),
-            name: bod.name || "BODEGA INDEFINIDA",
-            is_main: configLocal ? configLocal.ver : false
-          }
-        })
-        setListaBodegas(consolidadas)
+        const response = await fetch('/api/admin/bodegas/sincronizar')
+        const result = await response.json()
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || 'No se pudieron sincronizar las bodegas.')
+        }
+        setListaBodegas(result.data)
       } catch (error) {
         console.error(error)
       } finally {
@@ -72,14 +47,6 @@ export default function AdminBodegasPage() {
         for (const bodega of listaBodegas) {
           const res = await toggleBodegaPrincipal(bodega.id, bodega.is_main)
           if (!res.success) conErrores = true
-
-          await fetch('/api/admin/permisos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              rol: 'VENDEDOR', modulo: `bodega_${bodega.id}`, ver: bodega.is_main, crear: false, editar: false, eliminar: false
-            })
-          })
         }
 
         if (!conErrores) {
@@ -92,7 +59,7 @@ export default function AdminBodegasPage() {
         } else {
           Swal.fire('Atención', 'Hubo problemas con ciertos registros contables.', 'warning')
         }
-      } catch (err) {
+      } catch {
         Swal.fire('Error', 'Fallo crítico de conexión.', 'error')
       }
     })
@@ -150,10 +117,10 @@ export default function AdminBodegasPage() {
                     <p className="text-[12px] font-bold text-slate-400 tracking-widest font-mono">ID-{bodega.id}</p>
                   </td>
                   <td className="px-10 py-6 text-right">
-                    <ComponenteFilaBodega 
-                      id={bodega.id} 
-                      name={bodega.name} 
-                      isMainInicial={bodega.is_main} 
+                    <ComponenteFilaBodega
+                      id={bodega.id}
+                      name={bodega.name}
+                      isMainInicial={bodega.is_main}
                       disabled={isPending}
                       onChange={(checked) => handleFilaChange(bodega.id, checked)}
                     />

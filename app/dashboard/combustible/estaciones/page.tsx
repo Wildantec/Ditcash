@@ -1,25 +1,27 @@
 import { prisma } from '@/lib/prisma'
-import { getUsuariosAction } from '@/app/actions/usuarios'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
+import { redirect } from 'next/navigation'
 import ModuloEstacionesClient from '../../../../components/combustible/ModuloEstacionesClient'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function EstacionesCombustiblePage() {
-  const [gasolinerasDb, personal] = await Promise.all([
-    prisma.gasolinera.findMany({
-      include: {
-        registrosCombustible: {
-          include: {
-            vehiculo: true,
-            user: true
-          }
+  const usuario = await getCurrentUser()
+  if (!usuario) redirect('/login')
+  if (!userHasPermission(usuario, 'estaciones', 'ver')) redirect('/dashboard')
+
+  const gasolinerasDb = await prisma.gasolinera.findMany({
+    include: {
+      registrosCombustible: {
+        include: {
+          vehiculo: true,
+          user: true
         }
-      },
-      orderBy: { createdAt: 'asc' }
-    }).catch(() => []),
-    getUsuariosAction().catch(() => [])
-  ])
+      }
+    },
+    orderBy: { createdAt: 'asc' }
+  })
 
   const movimientosKardex: any[] = [];
 

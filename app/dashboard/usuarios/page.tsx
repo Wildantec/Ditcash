@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { getUsuariosAction } from '@/app/actions/usuarios'
+import { getCurrentUserAccessAction, getUsuariosAction } from '@/app/actions/usuarios'
 import CrearUsuario from '@/components/admin/CrearUsuario'
 import ListaUsuarios from '@/components/admin/ListaUsuarios'
 import { UserPlus, X } from 'lucide-react'
@@ -9,22 +9,27 @@ import { tienePermiso } from '@/lib/permisos'
 
 export default function UsuariosPage({ usuarioSesion }: { usuarioSesion?: any }) {
   const [usuarios, setUsuarios] = useState<any[]>([])
+  const [sesion, setSesion] = useState<any>(usuarioSesion || null)
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [isModalCrearOpen, setIsModalCrearOpen] = useState(false)
 
-  // Rol predeterminado ADMIN si no recibe parámetro
-  const permisosSesion = usuarioSesion?.role?.permisos || usuarioSesion?.permisos || []
-  const rolNombreSesion = usuarioSesion?.role?.nombre || usuarioSesion?.rol || 'ADMIN'
+  const permisosSesion = sesion?.role?.permisos || sesion?.permisos || []
+  const rolNombreSesion = sesion?.role?.nombre || sesion?.rol || ''
 
   const puedeCrear = tienePermiso(permisosSesion, rolNombreSesion, 'usuarios', 'crear')
 
   const cargarUsuarios = useCallback(async () => {
     try {
       setLoading(true)
+      setError('')
+      const usuarioActual = await getCurrentUserAccessAction()
+      setSesion(usuarioActual)
       const data = await getUsuariosAction()
-      setUsuarios(data || [])
+      setUsuarios(data)
     } catch (error) {
       console.error(error)
+      setError(error instanceof Error ? error.message : 'No se pudieron cargar los usuarios.')
     } finally {
       setLoading(false)
     }
@@ -74,10 +79,9 @@ export default function UsuariosPage({ usuarioSesion }: { usuarioSesion?: any })
           Cargando usuarios...
         </div>
       ) : (
-        <ListaUsuarios 
-          usuarios={usuarios} 
-          usuarioSesion={usuarioSesion} 
-        />
+        error
+          ? <div className="p-12 text-center text-red-600 font-bold text-sm">{error}</div>
+          : <ListaUsuarios usuarios={usuarios} usuarioSesion={sesion} />
       )}
     </div>
   )

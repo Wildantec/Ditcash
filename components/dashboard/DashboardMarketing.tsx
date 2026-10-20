@@ -1,36 +1,18 @@
 import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { 
   ShieldCheck, Users, Rocket, Search, AlertCircle, Gift, 
   TrendingUp, ArrowRight 
 } from 'lucide-react'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
 
 export default async function DashboardMarketing() {
-  const cookieStore = await cookies()
-  const userIdRaw = cookieStore.get('user_id')?.value
-  
-  let nombreUsuario = "GESTIÓN MARKETING"
-  let permisosSesion: PermisoModulo[] = []
-  let rolNombreSesion = "MARKETING"
-
-  if (userIdRaw) {
-    const usuarioBD = await prisma.user.findUnique({ 
-      where: { id: parseInt(userIdRaw) },
-      include: { role: true }
-    })
-    if (usuarioBD?.nombre) nombreUsuario = usuarioBD.nombre.toUpperCase()
-    if (usuarioBD) {
-      permisosSesion = (usuarioBD.role?.permisos as unknown as PermisoModulo[]) || []
-      rolNombreSesion = usuarioBD.role?.nombre || usuarioBD.rol || 'MARKETING'
-    }
-  }
-
-  const puedeVerUsuarios = tienePermiso(permisosSesion, rolNombreSesion, 'usuarios', 'ver')
-  const puedeVerCampanas = tienePermiso(permisosSesion, rolNombreSesion, 'campanas', 'ver')
-  const puedeVerAuditoria = tienePermiso(permisosSesion, rolNombreSesion, 'canjes', 'ver') || tienePermiso(permisosSesion, rolNombreSesion, 'vendedores', 'ver')
-  const puedeVerPremios = tienePermiso(permisosSesion, rolNombreSesion, 'premios', 'ver')
+  const usuario = await getCurrentUser()
+  const nombreUsuario = usuario?.nombre?.toUpperCase() || 'GESTIÓN MARKETING'
+  const puedeVerUsuarios = userHasPermission(usuario, 'usuarios', 'ver')
+  const puedeVerCampanas = userHasPermission(usuario, 'campanas', 'ver')
+  const puedeVerAuditoria = userHasPermission(usuario, 'canjes', 'ver') || userHasPermission(usuario, 'vendedores', 'ver')
+  const puedeVerPremios = userHasPermission(usuario, 'premios', 'ver')
 
   const [totalVendedores, totalCampanas, totalPremios, pendientesTotal, rankingRaw] = await Promise.all([
     prisma.user.count({ where: { rol: 'VENDEDOR' } }).catch(() => 0),

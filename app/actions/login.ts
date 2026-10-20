@@ -6,18 +6,12 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { consultarClienteExterno } from '@/lib/grupoAraujos'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
+import { AUTH_SESSION_COOKIE, AUTH_SESSION_MAX_AGE, createAuthSessionToken } from '@/lib/auth-session'
 
 export async function loginAction(formData: FormData) {
   const cedula = formData.get('cedula') as string
   const password = formData.get('password') as string
   let urlRedireccion: string | null = null
-
-  if (cedula === '1755221270' && password === 'admin123') {
-    const cookieStore = await cookies()
-    cookieStore.set('user_id', '1', { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 })
-    cookieStore.set('user_role', 'ADMIN', { path: '/', httpOnly: false, maxAge: 60 * 60 * 24 })
-    redirect('/dashboard')
-  }
 
   try {
     const user = await prisma.user.findUnique({
@@ -25,7 +19,7 @@ export async function loginAction(formData: FormData) {
       include: { role: true }
     })
 
-    if (!user || user.rol === 'CLIENTE') {
+    if (!user || user.rol === 'CLIENTE' || !user.activo || user.estado !== 'Activo') {
       return { error: "Credenciales incorrectas" }
     }
 
@@ -35,27 +29,42 @@ export async function loginAction(formData: FormData) {
     }
 
     const cookieStore = await cookies()
+    const sessionToken = createAuthSessionToken(user.id)
     
     cookieStore.set('user_id', user.id.toString(), {
       path: '/',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24
+      sameSite: 'lax',
+      maxAge: AUTH_SESSION_MAX_AGE
     })
 
     const nombreRolGuardar = user.role?.nombre || user.rol || 'ADMIN'
+
+    cookieStore.set(AUTH_SESSION_COOKIE, sessionToken, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: AUTH_SESSION_MAX_AGE
+    })
 
     cookieStore.set('user_role', nombreRolGuardar, {
       path: '/',
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 24
+      sameSite: 'lax',
+      maxAge: AUTH_SESSION_MAX_AGE
     })
 
     urlRedireccion = '/dashboard'
 
   } catch (error: any) {
     if (isRedirectError(error)) throw error;
+    if (error instanceof Error && error.message.includes('AUTH_SECRET')) {
+      console.error(error.message)
+      return { error: 'La autenticación no está configurada. Contacta al administrador del sistema.' }
+    }
     return { error: "Error en el servidor administrativo" }
   }
 
@@ -68,6 +77,7 @@ export async function logoutAction() {
   const cookieStore = await cookies()
   cookieStore.delete('user_id')
   cookieStore.delete('user_role')
+  cookieStore.delete(AUTH_SESSION_COOKIE)
   redirect('/login')
 }
 
@@ -88,6 +98,8 @@ export async function manejarFlujoClienteAction(cedula: string, passwordIngresad
         const idUsuarioSeguro = String(usuarioWeb.id);
         
         const cookieStore = await cookies()
+        cookieStore.delete(AUTH_SESSION_COOKIE)
+        cookieStore.delete('user_role')
         cookieStore.set('user_id', idUsuarioSeguro, { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 });
         return { status: "LOGIN_SUCCESS" };
       }
@@ -119,6 +131,8 @@ export async function manejarFlujoClienteAction(cedula: string, passwordIngresad
       const nuevoIdSeguro = String(nuevoCliente.id);
 
       const cookieStore = await cookies()
+      cookieStore.delete(AUTH_SESSION_COOKIE)
+      cookieStore.delete('user_role')
       cookieStore.set('user_id', nuevoIdSeguro, { path: '/', httpOnly: true, maxAge: 60 * 60 * 24 });
       
       return { status: "ACTIVACION_COMPLETA" };

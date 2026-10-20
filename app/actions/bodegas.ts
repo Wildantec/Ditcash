@@ -2,29 +2,10 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { currentUserHasPermission } from '@/lib/authorization'
 
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
-  try {
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return false
-
-    const usuario = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
-      include: { role: true }
-    })
-
-    if (!usuario) return false
-
-    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
-    const rolNombre = usuario.role?.nombre || usuario.rol
-
-    return tienePermiso(permisos, rolNombre, moduloId, accion)
-  } catch (error) {
-    return false
-  }
+  return currentUserHasPermission(moduloId, accion)
 }
 
 export async function toggleBodegaPrincipal(idBodegaAraujos: string, esPrincipal: boolean) {

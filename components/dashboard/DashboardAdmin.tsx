@@ -1,39 +1,24 @@
 import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { 
   ShieldCheck, Users, Rocket, Search, AlertCircle, Gift, 
   TrendingUp, ArrowRight, Receipt, Car, Fuel 
 } from 'lucide-react'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
 
 export default async function DashboardAdmin() {
-  const cookieStore = await cookies()
-  const userIdRaw = cookieStore.get('user_id')?.value
-  
-  let nombreUsuario = "DITEC ADMIN"
-  let permisosSesion: PermisoModulo[] = []
-  let rolNombreSesion = "ADMIN"
+  const usuario = await getCurrentUser()
+  if (!usuario) redirect('/login')
+  const nombreUsuario = usuario.nombre?.toUpperCase() || 'DITEC ADMIN'
+  const puedeVerUsuarios = userHasPermission(usuario, 'usuarios', 'ver')
+  const puedeVerCampanas = userHasPermission(usuario, 'campanas', 'ver')
+  const puedeVerAuditoria = userHasPermission(usuario, 'canjes', 'ver') || userHasPermission(usuario, 'vendedores', 'ver')
+  const puedeVerPremios = userHasPermission(usuario, 'premios', 'ver')
 
-  if (userIdRaw) {
-    const usuarioBD = await prisma.user.findUnique({ 
-      where: { id: parseInt(userIdRaw) },
-      include: { role: true }
-    })
-    if (usuarioBD?.nombre) nombreUsuario = usuarioBD.nombre.toUpperCase()
-    if (usuarioBD) {
-      permisosSesion = (usuarioBD.role?.permisos as unknown as PermisoModulo[]) || []
-      rolNombreSesion = usuarioBD.role?.nombre || usuarioBD.rol || 'ADMIN'
-    }
-  }
-  const puedeVerUsuarios = tienePermiso(permisosSesion, rolNombreSesion, 'usuarios', 'ver')
-  const puedeVerCampanas = tienePermiso(permisosSesion, rolNombreSesion, 'campanas', 'ver')
-  const puedeVerAuditoria = tienePermiso(permisosSesion, rolNombreSesion, 'canjes', 'ver') || tienePermiso(permisosSesion, rolNombreSesion, 'vendedores', 'ver')
-  const puedeVerPremios = tienePermiso(permisosSesion, rolNombreSesion, 'premios', 'ver')
-
-  const puedeVerFacturas = tienePermiso(permisosSesion, rolNombreSesion, 'facturas_comb', 'ver') || tienePermiso(permisosSesion, rolNombreSesion, 'vehiculos_cont', 'ver')
-  const puedeVerVehiculos = tienePermiso(permisosSesion, rolNombreSesion, 'vehiculos', 'ver') || tienePermiso(permisosSesion, rolNombreSesion, 'vehiculos_cont', 'ver')
-  const puedeVerEstaciones = tienePermiso(permisosSesion, rolNombreSesion, 'estaciones', 'ver') || tienePermiso(permisosSesion, rolNombreSesion, 'vehiculos_cont', 'ver')
+  const puedeVerFacturas = userHasPermission(usuario, 'facturas_comb', 'ver') || userHasPermission(usuario, 'vehiculos_cont', 'ver')
+  const puedeVerVehiculos = userHasPermission(usuario, 'vehiculos', 'ver') || userHasPermission(usuario, 'vehiculos_cont', 'ver')
+  const puedeVerEstaciones = userHasPermission(usuario, 'estaciones', 'ver') || userHasPermission(usuario, 'vehiculos_cont', 'ver')
 
   const [
     totalVendedores, totalCampanas, totalPremios, pendientesTotal, rankingRaw,

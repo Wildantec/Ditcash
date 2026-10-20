@@ -1,28 +1,12 @@
 import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
 import { Fuel, FileSpreadsheet, Calculator, TrendingUp, AlertCircle, Clock, ShieldAlert } from 'lucide-react'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
 
 export default async function DashboardContabilidad() {
-  const cookieStore = await cookies()
-  const userIdRaw = cookieStore.get('user_id')?.value
+  const usuario = await getCurrentUser()
 
-  let permisosSesion: PermisoModulo[] = []
-  let rolNombreSesion = 'ADMIN'
-
-  if (userIdRaw) {
-    const usuarioBD = await prisma.user.findUnique({
-      where: { id: parseInt(userIdRaw) },
-      include: { role: true }
-    })
-    if (usuarioBD) {
-      permisosSesion = (usuarioBD.role?.permisos as unknown as PermisoModulo[]) || []
-      rolNombreSesion = usuarioBD.role?.nombre || usuarioBD.rol || 'ADMIN'
-    }
-  }
-
-  const puedeVerContabilidad = tienePermiso(permisosSesion, rolNombreSesion, 'vehiculos_cont', 'ver') ||
-                               tienePermiso(permisosSesion, rolNombreSesion, 'facturas_comb', 'ver')
+  const puedeVerContabilidad = userHasPermission(usuario, 'vehiculos_cont', 'ver') ||
+                               userHasPermission(usuario, 'facturas_comb', 'ver')
 
   if (!puedeVerContabilidad) {
     return (

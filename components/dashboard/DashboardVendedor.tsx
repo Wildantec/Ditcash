@@ -1,28 +1,18 @@
-import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
+import { AUTH_SESSION_COOKIE } from '@/lib/auth-session'
+import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ShieldCheck, Trophy, Medal, AlertTriangle, Camera } from 'lucide-react'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
 
 export default async function DashboardVendedor() {
-  const cookieStore = await cookies()
-  const userIdRaw = cookieStore.get('user_id')?.value
+  const usuarioBD = await getCurrentUser()
+  if (!usuarioBD) redirect('/login')
+  const userId = usuarioBD.id
 
-  if (!userIdRaw) redirect('/login')
-
-  const userId = parseInt(userIdRaw)
-
-  const usuarioBD = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { role: true }
-  })
-
-  const permisosSesion = (usuarioBD?.role?.permisos as unknown as PermisoModulo[]) || []
-  const rolNombreSesion = usuarioBD?.role?.nombre || usuarioBD?.rol || 'VENDEDOR'
-
-  const puedeVerPremios = tienePermiso(permisosSesion, rolNombreSesion, 'premios', 'ver')
-  const puedeVerCampanas = tienePermiso(permisosSesion, rolNombreSesion, 'campanas', 'ver')
+  const puedeVerPremios = userHasPermission(usuarioBD, 'premios', 'ver')
+  const puedeVerCampanas = userHasPermission(usuarioBD, 'campanas', 'ver')
 
   const vendedor = await prisma.vendedor.findUnique({
     where: { usuarioId: userId }
@@ -34,6 +24,7 @@ export default async function DashboardVendedor() {
       const cookiesActuales = await cookies()
       cookiesActuales.delete('user_id')
       cookiesActuales.delete('user_role')
+      cookiesActuales.delete(AUTH_SESSION_COOKIE)
       redirect('/login')
     }
 
@@ -46,7 +37,7 @@ export default async function DashboardVendedor() {
           <div>
             <h3 className="font-black text-lg uppercase italic tracking-tight">Perfil No Detectado</h3>
             <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-2 leading-relaxed">
-              Tu ID de usuario corporativo ({userIdRaw}) no se encuentra vinculado a la tabla de vendedores en Ditec.
+              Tu ID de usuario corporativo ({userId}) no se encuentra vinculado a la tabla de vendedores en Ditec.
             </p>
           </div>
           

@@ -2,29 +2,10 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { currentUserHasPermission, getCurrentUser } from '@/lib/authorization'
 
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
-  try {
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return false
-
-    const usuario = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
-      include: { role: true }
-    })
-
-    if (!usuario) return false
-
-    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
-    const rolNombre = usuario.role?.nombre || usuario.rol
-
-    return tienePermiso(permisos, rolNombre, moduloId, accion)
-  } catch (error) {
-    return false
-  }
+  return currentUserHasPermission(moduloId, accion)
 }
 
 export async function registrarCierreRutaDiario(data: {
@@ -33,15 +14,21 @@ export async function registrarCierreRutaDiario(data: {
   kmRecorridos: number
 }) {
   try {
+    const usuarioActual = await getCurrentUser()
     const autorizado = await validarAccionSesion('vehiculos', 'crear')
-    if (!autorizado) {
+    if (!usuarioActual || !autorizado) {
       return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR cierre de rutas.' }
     }
 
     const placaNormalizada = data.placaCarro.toUpperCase().trim()
 
-    const vehiculo = await prisma.vehiculo.findUnique({
-      where: { placa: placaNormalizada }
+    const vehiculo = await prisma.vehiculo.findFirst({
+      where: {
+        placa: placaNormalizada,
+        asignaciones: {
+          some: { userId: usuarioActual.id, fechaFin: null }
+        }
+      }
     })
     
     if (!vehiculo) {
@@ -50,7 +37,7 @@ export async function registrarCierreRutaDiario(data: {
 
     const rutaActiva = await prisma.registroRutaDiaria.findFirst({
       where: {
-        userId: data.userId,
+        userId: usuarioActual.id,
         placaCarro: placaNormalizada,
         procesado: false,
         kmRecorridos: 0
@@ -676,15 +663,23 @@ export async function eliminarFacturaCombustibleAction(id: number) {
 }
 export async function registrarInicioJornada(data: { userId: number; placaCarro: string; kmInicial: number }) {
   try {
+    const usuarioActual = await getCurrentUser()
     const autorizado = await validarAccionSesion('vehiculos', 'crear')
-    if (!autorizado) {
+    if (!usuarioActual || !autorizado) {
       return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR inicios de jornada.' }
     }
 
     const placaNormalizada = data.placaCarro.toUpperCase().trim()
+    const asignacionActiva = await prisma.asignacionVehiculo.findFirst({
+      where: { userId: usuarioActual.id, fechaFin: null, vehiculo: { placa: placaNormalizada } }
+    })
+    if (!asignacionActiva) {
+      return { success: false, error: 'No tienes asignado ese vehículo para iniciar la jornada.' }
+    }
+
     const rutaAbierta = await prisma.registroRutaDiaria.findFirst({
       where: {
-        userId: data.userId,
+        userId: usuarioActual.id,
         procesado: false,
         kmRecorridos: 0
       }
@@ -696,7 +691,7 @@ export async function registrarInicioJornada(data: { userId: number; placaCarro:
 
     await prisma.registroRutaDiaria.create({
       data: { 
-        userId: data.userId, 
+        userId: usuarioActual.id,
         placaCarro: placaNormalizada, 
         kmRecorridos: 0, 
         procesado: false 

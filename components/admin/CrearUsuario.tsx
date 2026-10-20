@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { IdCard, ShieldCheck, User, Key, Loader2, ChevronDown } from 'lucide-react'
 import Swal from 'sweetalert2'
-import { obtenerRolesAction } from '@/app/actions/roles'
+import { obtenerRolesParaAsignacionAction } from '@/app/actions/roles'
 import { crearUsuarioAction } from '@/app/actions/usuarios'
 
 interface CrearUsuarioProps {
@@ -32,7 +32,7 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
     async function cargarRoles() {
       try {
         setLoadingRoles(true)
-        const res = await obtenerRolesAction()
+        const res = await obtenerRolesParaAsignacionAction()
         if (res.success && res.roles) {
           setRolesBD(res.roles)
           if (res.roles.length > 0) {
@@ -87,6 +87,7 @@ export default function CrearUsuario({ onSuccess }: CrearUsuarioProps) {
         username: formData.username.trim() || formData.cedula.trim(),
         cedula: cedulaLimpia,
         nombreCompleto: formData.nombre.trim(),
+        password: formData.password,
         rol: rolSeleccionado.nombre,
         roleId: rolSeleccionado.id
       })

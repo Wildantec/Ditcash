@@ -1,9 +1,18 @@
 import { prisma } from '@/lib/prisma'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
+import { redirect } from 'next/navigation'
 import ModuloVehiculosAdmin from '../../../../components/combustible/ParametrizacionFormularios'
 
 export const dynamic = 'force-dynamic'
 
 export default async function ParametrizacionCombustiblePage() {
+  const usuario = await getCurrentUser()
+  if (!usuario) redirect('/login')
+  if (
+    !userHasPermission(usuario, 'vehiculos', 'ver') &&
+    !userHasPermission(usuario, 'vehiculos_cont', 'ver')
+  ) redirect('/dashboard')
+
   // 🚀 Extraemos las transacciones del Kardex para alimentar la tabla abierta
   const registrosKardex = await prisma.kardexVehiculo.findMany({
     include: {

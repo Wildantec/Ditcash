@@ -1,10 +1,16 @@
 import { prisma } from '@/lib/prisma'
+import { getCurrentUser, userHasPermission } from '@/lib/authorization'
+import { redirect } from 'next/navigation'
 import ModuloFacturasClient from '../../../../components/combustible/ModuloFacturasClient'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function FacturasPage() {
+  const usuario = await getCurrentUser()
+  if (!usuario) redirect('/login')
+  if (!userHasPermission(usuario, 'facturas_comb', 'ver')) redirect('/dashboard')
+
   const [vehiculosDb, gasolinerasDb, facturasDb, vendedoresDb] = await Promise.all([
     prisma.vehiculo.findMany({ orderBy: { placa: 'asc' } }).catch(() => []),
     prisma.gasolinera.findMany({ orderBy: { nombre: 'asc' } }).catch(() => []),

@@ -1,11 +1,10 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { v2 as cloudinary } from 'cloudinary'
 import crypto from 'crypto'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { currentUserHasPermission, getCurrentUser } from '@/lib/authorization'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -15,25 +14,7 @@ cloudinary.config({
 });
 
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
-  try {
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return false
-
-    const usuario = await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
-      include: { role: true }
-    })
-
-    if (!usuario) return false
-
-    const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
-    const rolNombre = usuario.role?.nombre || usuario.rol
-
-    return tienePermiso(permisos, rolNombre, moduloId, accion)
-  } catch (error) {
-    return false
-  }
+  return currentUserHasPermission(moduloId, accion)
 }
 
 export async function registrarEvidenciaAction(formData: FormData, campanaId: string) {
@@ -46,12 +27,11 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     const file = formData.get('foto') as File
     const clienteNombre = formData.get('cliente_nombre') as string
     
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return { error: "No se encontró la sesión del usuario." }
+    const usuarioActual = await getCurrentUser()
+    if (!usuarioActual) return { error: "No se encontró la sesión del usuario." }
 
     const vendedor = await prisma.vendedor.findUnique({
-      where: { usuarioId: parseInt(userId) }
+      where: { usuarioId: usuarioActual.id }
     })
     if (!vendedor) return { error: "Vendedor no encontrado." }
 
@@ -155,12 +135,11 @@ export async function getHistorialVendedor() {
     const autorizado = await validarAccionSesion('canjes', 'ver') || await validarAccionSesion('historial', 'ver')
     if (!autorizado) return { campanas: [], saldoDisponible: 0 }
 
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return { campanas: [], saldoDisponible: 0 }
+    const usuarioActual = await getCurrentUser()
+    if (!usuarioActual) return { campanas: [], saldoDisponible: 0 }
 
     const vendedor = await prisma.vendedor.findUnique({
-      where: { usuarioId: parseInt(userId) }
+      where: { usuarioId: usuarioActual.id }
     })
     if (!vendedor) return { campanas: [], saldoDisponible: 0 }
 
@@ -206,11 +185,10 @@ export async function getMisEvidencias(campanaId: number) {
     const autorizado = await validarAccionSesion('canjes', 'ver')
     if (!autorizado) return []
 
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return []
+    const usuarioActual = await getCurrentUser()
+    if (!usuarioActual) return []
 
-    const vendedor = await prisma.vendedor.findUnique({ where: { usuarioId: parseInt(userId) } })
+    const vendedor = await prisma.vendedor.findUnique({ where: { usuarioId: usuarioActual.id } })
     if (!vendedor) return []
 
     const data = await prisma.evidencia.findMany({

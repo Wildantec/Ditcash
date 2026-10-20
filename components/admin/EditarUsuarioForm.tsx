@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getUsuarioByIdAction, actualizarUsuarioAction } from '@/app/actions/usuarios'
-import { obtenerRolesAction } from '@/app/actions/roles'
+import { obtenerRolesParaAsignacionAction } from '@/app/actions/roles'
 import { IdCard, ShieldCheck, User, ChevronDown, Loader2 } from 'lucide-react'
 import Swal from 'sweetalert2'
 
@@ -45,7 +45,7 @@ export default function EditarUsuarioForm({ usuarioId, onFormSuccess }: EditarUs
         setLoading(true)
         const [u, resRoles] = await Promise.all([
           getUsuarioByIdAction(usuarioId),
-          obtenerRolesAction()
+          obtenerRolesParaAsignacionAction()
         ])
 
         const listaRoles = resRoles?.roles || []

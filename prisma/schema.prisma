@@ -42,6 +42,7 @@ model Vendedor {
   usuario          User?       @relation(fields: [usuarioId], references: [id])
   evidencias       Evidencia[]
   canjes           Canje[]     
+  evaluaciones     EvaluacionVendedor[]
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
@@ -219,10 +220,8 @@ model KardexVehiculo {
   id                 Int      @id @default(autoincrement())
   vehiculoId         Int
   vehiculo           Vehiculo @relation(fields: [vehiculoId], references: [id], onDelete: Cascade)
-  
   fechaTransaccion   DateTime @default(now())
   tipoMovimiento     String
-  
   kmEnEseMomento     Float
   kmMantenimiento    Float
   costoTransaccion   Float
@@ -240,8 +239,39 @@ model Role {
   permisos    Json     
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   usuarios    User[]
 
   @@map("roles")
+}
+
+model SemanaComercial {
+  id          Int                  @id @default(autoincrement())
+  nombre      String
+  mes         String?
+  fechaInicio DateTime
+  fechaFin    DateTime
+  creadaEn    DateTime             @default(now())
+  evaluaciones EvaluacionVendedor[]
+
+  @@map("semanas_comerciales")
+}
+
+model EvaluacionVendedor {
+  id                Int             @id @default(autoincrement())
+  semanaId          Int
+  vendedorId        Int
+  numContratos      Int             @default(0)
+  totalVentas       Float           @default(0)
+  contratosFisicos  Boolean         @default(false)
+  infoCompleta      Boolean         @default(false)
+  requisitos        Boolean         @default(false)
+  entregaMercaderia Boolean         @default(false)
+  superEstrella     Boolean         @default(false)
+  observacion       String?         @db.Text
+  creadaEn          DateTime        @default(now())
+  semana            SemanaComercial @relation(fields: [semanaId], references: [id], onDelete: Cascade)
+  vendedor          Vendedor        @relation(fields: [vendedorId], references: [id])
+
+  @@unique([semanaId, vendedorId])
+  @@map("evaluaciones_vendedores")
 }

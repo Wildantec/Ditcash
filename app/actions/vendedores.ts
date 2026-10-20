@@ -2,9 +2,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { v2 as cloudinary } from 'cloudinary'
-import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-import { tienePermiso, PermisoModulo } from '@/lib/permisos'
+import { currentUserHasPermission, getCurrentUser } from '@/lib/authorization'
 
 cloudinary.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -15,27 +14,14 @@ cloudinary.config({
 
 async function obtenerUsuarioSesion() {
   try {
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return null
-
-    return await prisma.user.findUnique({
-      where: { id: parseInt(userId) },
-      include: { role: true }
-    })
+    return await getCurrentUser()
   } catch (error) {
     return null
   }
 }
 
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
-  const usuario = await obtenerUsuarioSesion()
-  if (!usuario) return false
-
-  const permisos = (usuario.role?.permisos as unknown as PermisoModulo[]) || []
-  const rolNombre = usuario.role?.nombre || usuario.rol
-
-  return tienePermiso(permisos, rolNombre, moduloId, accion)
+  return currentUserHasPermission(moduloId, accion)
 }
 
 export async function getVendedorByUsuarioId(usuarioId: number) {
@@ -51,12 +37,11 @@ export async function getVendedorByUsuarioId(usuarioId: number) {
 
 export async function getSaldoVendedorAction() {
   try {
-    const cookieStore = await cookies()
-    const userId = cookieStore.get('user_id')?.value
-    if (!userId) return 0
+    const usuarioActual = await getCurrentUser()
+    if (!usuarioActual) return 0
 
     const vendedor = await prisma.vendedor.findUnique({
-      where: { usuarioId: parseInt(userId) }
+      where: { usuarioId: usuarioActual.id }
     })
 
     if (!vendedor) return 0

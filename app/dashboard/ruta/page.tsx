@@ -1,14 +1,20 @@
 import { prisma } from '@/lib/prisma'
 import VistaMovilRutaClient from '@/components/combustible/VistaMovilRutaClient'
-import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { getCurrentUser } from '@/lib/authorization'
 
 export const dynamic = 'force-dynamic'
 
 export default async function RutaVendedorPage() {
-  const cookieStore = await cookies()
-  const userIdCookie = cookieStore.get('user_id')?.value
-  const userId = userIdCookie ? parseInt(userIdCookie) : 1 
+  const usuario = await getCurrentUser()
+  if (!usuario) redirect('/login')
+  const userId = usuario.id
   const vehiculos = await prisma.vehiculo.findMany({
+    where: {
+      asignaciones: {
+        some: { userId, fechaFin: null }
+      }
+    },
     orderBy: { placa: 'asc' },
     include: {
       asignaciones: {
