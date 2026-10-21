@@ -4,7 +4,7 @@ import { use, useState, useEffect, useCallback } from 'react'
 import { registrarEvidenciaAction, getMisEvidencias } from '@/app/actions/evidencias'
 import { getCampanaPublica } from '@/app/actions/campanas'
 import Swal from 'sweetalert2'
-import imageCompression from 'browser-image-compression'
+import { compressEvidenceImage } from '@/lib/compressEvidenceImage'
 import { Camera, Image as ImageIcon, CheckCircle, AlertCircle, Clock, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -48,15 +48,14 @@ export default function RegistroEvidenciasForm({ params }: { params: Promise<{ i
     })
 
     try {
-      if (imageFile && imageFile.size > 0) {
-        const options = {
-          maxSizeMB: 0.7,
-          maxWidthOrHeight: 1280,
-          useWebWorker: true
-        }
-        const compressedFile = await imageCompression(imageFile, options)
-        formData.set('foto', compressedFile, imageFile.name)
+      if (!imageFile || imageFile.size === 0) {
+        throw new Error('Selecciona una foto antes de enviar la evidencia.')
       }
+      const compressedFile = await compressEvidenceImage(imageFile)
+      formData.set('foto', compressedFile, 'evidencia.jpg')
+      Swal.update({
+        text: `Imagen optimizada: ${(imageFile.size / 1024 / 1024).toFixed(2)} MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB. Enviando...`
+      })
 
       formData.append('cliente_nombre', formData.get('cliente') as string)
       const result = await registrarEvidenciaAction(formData, campanaId.toString())
@@ -88,8 +87,8 @@ export default function RegistroEvidenciasForm({ params }: { params: Promise<{ i
       console.error("Error al procesar la evidencia:", error)
       Swal.fire({
         icon: 'error',
-        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ERROR DE ARCHIVO</span>',
-        text: 'La imagen capturada es muy pesada. Intenta reducir la resolución o capturarla nuevamente.',
+        title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ERROR AL OPTIMIZAR O ENVIAR</span>',
+        text: error instanceof Error ? error.message : 'No se pudo procesar la imagen. Revisa tu conexión e intenta nuevamente.',
         confirmButtonColor: '#001F3F'
       })
     } finally {

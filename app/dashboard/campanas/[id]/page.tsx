@@ -3,7 +3,7 @@ import { use, useState, useEffect, useCallback } from 'react'
 import { registrarEvidenciaAction, getMisEvidencias } from '@/app/actions/evidencias'
 import { getCampanaPublica } from '@/app/actions/campanas'
 import Swal from 'sweetalert2'
-import imageCompression from 'browser-image-compression'
+import { compressEvidenceImage } from '@/lib/compressEvidenceImage'
 import { Loader2 } from 'lucide-react'
 
 export default function RegistroEvidenciasPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,17 +40,23 @@ export default function RegistroEvidenciasPage({ params }: { params: Promise<{ i
       didOpen: () => { Swal.showLoading() }
     })
 
+    let compressedFile: File
     try {
-      if (imageFile && imageFile.size > 0) {
-        const options = {
-          maxSizeMB: 0.7,
-          maxWidthOrHeight: 1280,
-          useWebWorker: true
-        }
-        const compressedFile = await imageCompression(imageFile, options)
-        formData.set('foto', compressedFile, imageFile.name)
+      if (!imageFile || imageFile.size === 0) {
+        throw new Error('Selecciona una foto antes de enviar la evidencia.')
       }
+      compressedFile = await compressEvidenceImage(imageFile)
+      formData.set('foto', compressedFile, 'evidencia.jpg')
+      Swal.update({
+        text: `Imagen optimizada: ${(imageFile.size / 1024 / 1024).toFixed(2)} MB → ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB. Enviando...`
+      })
+    } catch (error) {
+      console.error("Error al comprimir la evidencia:", error)
+      Swal.fire('Error al optimizar', error instanceof Error ? error.message : 'No se pudo comprimir la imagen.', 'error')
+      return
+    }
 
+    try {
       formData.append('cliente_nombre', formData.get('cliente') as string)
       const result = await registrarEvidenciaAction(formData, campanaId.toString())
 
@@ -73,8 +79,8 @@ export default function RegistroEvidenciasPage({ params }: { params: Promise<{ i
       await cargarDatos() 
 
     } catch (error) {
-      console.error("Error al procesar:", error)
-      Swal.fire('Error', 'La imagen es muy pesada. Intenta capturarla nuevamente.', 'error')
+      console.error("Error al enviar la evidencia:", error)
+      Swal.fire('Error de envío', 'La imagen ya fue optimizada, pero no se pudo enviar. Revisa tu conexión e intenta nuevamente.', 'error')
     } finally {
       setLoading(false)
     }
