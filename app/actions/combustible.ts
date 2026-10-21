@@ -1,11 +1,51 @@
 'use server'
 
+import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { currentUserHasPermission, getCurrentUser } from '@/lib/authorization'
 
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
   return currentUserHasPermission(moduloId, accion)
+}
+
+async function buscarFacturaRegistrada(numero: string, gasolineraId: number) {
+  const factura = await prisma.registroCombustible.findFirst({
+    where: { gasolineraId, numFactura: numero },
+    include: {
+      user: {
+        select: {
+          id: true,
+          nombre: true,
+          vendedor: { select: { nombre: true, apellido: true } }
+        },
+      },
+      gasolinera: {
+        select: { nombre: true }
+      }
+    }
+  })
+
+  if (!factura) return null
+  const nombreResponsable = factura.user.vendedor
+    ? `${factura.user.vendedor.nombre} ${factura.user.vendedor.apellido || ''}`.trim()
+    : factura.user.nombre
+
+  return {
+    numero,
+    responsable: nombreResponsable || `usuario #${factura.user.id}`,
+    estacion: factura.gasolinera.nombre
+  }
+}
+
+function mensajeFacturaRegistrada(factura: { numero: string; responsable: string; estacion: string }) {
+  return `La factura ${factura.numero} ya está registrada para ${factura.estacion} a nombre de ${factura.responsable}.`
+}
+
+function crearClaveFacturaConvenio(gasolineraId: number, numero: string) {
+  return createHash('sha256')
+    .update(`${gasolineraId}:${numero.trim().toUpperCase()}`)
+    .digest('hex')
 }
 
 export async function registrarCierreRutaDiario(data: {
@@ -90,6 +130,9 @@ export async function registrarFacturaCombustible(data: {
   fechaFactura: Date      
   metodoPago: string
 }) {
+  let finalGasolineraId: number | null = null
+  let numeracionIngresada = ''
+  let fueraDeConvenio = false
   try {
     if (data.id) {
       return await editarFacturaCombustibleAction(data.id, data);
@@ -99,6 +142,8 @@ export async function registrarFacturaCombustible(data: {
     if (!autorizado) {
       return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR facturas de combustible.' }
     }
+
+    numeracionIngresada = data.numFactura.trim().toUpperCase()
 
     let vehiculo = await prisma.vehiculo.findFirst();
     if (!vehiculo) {
@@ -115,8 +160,8 @@ export async function registrarFacturaCombustible(data: {
       if (usuarioEncontrado) finalUserId = usuarioEncontrado.id;
     }
 
-    let finalGasolineraId = data.gasolineraId;
-    let fueraDeConvenio = data.metodoPago === 'NO CONVENIO';
+    finalGasolineraId = data.gasolineraId;
+    fueraDeConvenio = data.metodoPago === 'NO CONVENIO';
 
     if (fueraDeConvenio) {
       const nombreEstacion = data.nombreEstacionManual?.trim().toUpperCase() || 'ESTACIÓN EXTERNA';
@@ -146,16 +191,18 @@ export async function registrarFacturaCombustible(data: {
       }
     }
 
-    let numeracionFinal = data.numFactura.trim().toUpperCase();
+    if (!fueraDeConvenio && numeracionIngresada) {
+      const facturaExistente = await buscarFacturaRegistrada(numeracionIngresada, finalGasolineraId)
+      if (facturaExistente) {
+        return { success: false, error: mensajeFacturaRegistrada(facturaExistente) }
+      }
+    }
+
+    let numeracionFinal = numeracionIngresada;
     if (!numeracionFinal) {
       const prefijo = fueraDeConvenio ? 'EXT' : 'CONV';
       const totalRegistros = await prisma.registroCombustible.count({ where: { metodoPago: data.metodoPago } });
       numeracionFinal = `${prefijo}-SEC-${String(totalRegistros + 1).padStart(6, '0')}`;
-    } else {
-      const facturaRepetida = await prisma.registroCombustible.findFirst({
-        where: { numFactura: numeracionFinal, gasolineraId: finalGasolineraId }
-      });
-      if (facturaRepetida) return { success: false, error: 'El número de factura ya se encuentra registrado para este convenio o proveedor.' };
     }
 
     await prisma.registroCombustible.create({
@@ -167,6 +214,9 @@ export async function registrarFacturaCombustible(data: {
         precioTotal: data.precioTotal,
         galones: 0,
         numFactura: numeracionFinal,
+        claveFacturaConvenio: fueraDeConvenio
+          ? null
+          : crearClaveFacturaConvenio(finalGasolineraId, numeracionFinal),
         fueraDeConvenio: fueraDeConvenio,
         metodoPago: data.metodoPago,
         fechaFactura: data.fechaFactura
@@ -206,8 +256,24 @@ export async function registrarFacturaCombustible(data: {
     revalidatePath('/dashboard/combustible/facturas');
     revalidatePath('/dashboard/combustible/estaciones');
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'P2002' &&
+      !fueraDeConvenio
+    ) {
+      const numero = numeracionIngresada || data.numFactura.trim().toUpperCase()
+      const facturaExistente = numero && finalGasolineraId
+        ? await buscarFacturaRegistrada(numero, finalGasolineraId)
+        : null
+      if (facturaExistente) {
+        return { success: false, error: mensajeFacturaRegistrada(facturaExistente) }
+      }
+      return { success: false, error: 'Ya existe una factura con ese número para esta estación.' }
+    }
+    return { success: false, error: error instanceof Error ? error.message : 'No se pudo registrar la factura.' };
   }
 }
 
@@ -585,6 +651,45 @@ export async function editarFacturaCombustibleAction(id: number, data: any) {
       numeracionFinal = facturaVieja.numFactura;
     }
 
+    if (!fueraDeConvenio) {
+      const facturaDuplicada = await prisma.registroCombustible.findFirst({
+        where: {
+          gasolineraId: finalGasolineraId,
+          numFactura: numeracionFinal,
+          id: { not: Number(id) }
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              vendedor: { select: { nombre: true, apellido: true } }
+            }
+          },
+          gasolinera: { select: { nombre: true } }
+        }
+      })
+      if (facturaDuplicada) {
+        if (!facturaVieja.fueraDeConvenio && facturaVieja.gasolineraId) {
+          await prisma.gasolinera.update({
+            where: { id: facturaVieja.gasolineraId },
+            data: { montoActual: { decrement: facturaVieja.precioTotal } }
+          })
+        }
+        const responsable = facturaDuplicada.user.vendedor
+          ? `${facturaDuplicada.user.vendedor.nombre} ${facturaDuplicada.user.vendedor.apellido || ''}`.trim()
+          : facturaDuplicada.user.nombre
+        return {
+          success: false,
+          error: mensajeFacturaRegistrada({
+            numero: numeracionFinal,
+            responsable: responsable || `usuario #${facturaDuplicada.user.id}`,
+            estacion: facturaDuplicada.gasolinera.nombre
+          })
+        }
+      }
+    }
+
     // 3. ACTUALIZAR REGISTRO (INCLUYENDO userId Y EL CHOFER)
     await prisma.registroCombustible.update({
       where: { id: Number(id) },
@@ -593,6 +698,9 @@ export async function editarFacturaCombustibleAction(id: number, data: any) {
         gasolineraId: finalGasolineraId,
         precioTotal: data.precioTotal,
         numFactura: numeracionFinal,
+        claveFacturaConvenio: fueraDeConvenio
+          ? null
+          : crearClaveFacturaConvenio(finalGasolineraId, numeracionFinal),
         fueraDeConvenio: fueraDeConvenio,
         metodoPago: data.metodoPago,
         fechaFactura: data.fechaFactura

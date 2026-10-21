@@ -197,7 +197,8 @@ model RegistroCombustible {
   kmRecorridos    Float      
   precioTotal     Float      
   galones         Float      
-  numFactura      String     @unique 
+  numFactura      String
+  claveFacturaConvenio String? @unique @map("clave_factura_convenio")
   fueraDeConvenio Boolean    @default(false)
   metodoPago      String     @default("CONVENIO")
   fechaFactura    DateTime   

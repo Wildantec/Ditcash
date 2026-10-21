@@ -41,6 +41,12 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     if (!campana) return { error: "Campaña no encontrada." }
 
     if (!file || file.size === 0) return { error: "La foto es obligatoria." }
+    if (!file.type.startsWith('image/')) {
+      return { error: "El archivo seleccionado no es una imagen válida." }
+    }
+    if (file.size > 1.5 * 1024 * 1024) {
+      return { error: "La imagen optimizada supera 1.5 MB. Selecciona otra foto e intenta nuevamente." }
+    }
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
@@ -86,7 +92,8 @@ export async function registrarEvidenciaAction(formData: FormData, campanaId: st
     return { success: true }
 
   } catch (error) {
-    return { error: "Error de conexión: La imagen es muy pesada o el internet es inestable." }
+    console.error("Error al registrar la evidencia:", error)
+    return { error: "No se pudo registrar la evidencia. Revisa tu conexión e intenta nuevamente; si persiste, contacta al administrador." }
   }
 }
 

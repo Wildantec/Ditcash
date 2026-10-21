@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { crearGasolineraAction, editarGasolineraAction, eliminarGasolineraAction } from '@/app/actions/combustible'
-import { Fuel, Plus, X, Loader2, DollarSign, Wallet, ArrowUpRight, Edit2, Trash2, Download } from 'lucide-react'
+import { Fuel, Plus, X, Loader2, DollarSign, Wallet, ArrowUpRight, Edit2, Trash2, Download, ChevronLeft, ChevronRight } from 'lucide-react'
 import Swal from 'sweetalert2'
 import { exportarKardexEstacionesExcel } from '@/app/actions/reportes-estaciones'
 
@@ -23,6 +23,8 @@ export default function ModuloEstacionesClient({
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
   const [filtroEstacion, setFiltroEstacion] = useState('')
+  const [paginaActual, setPaginaActual] = useState(1)
+  const movimientosPorPagina = 15
 
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -110,6 +112,18 @@ export default function ModuloEstacionesClient({
     setTotalConsumido(egresos);
     setSaldoRealCalculado(ingresos - egresosConvenio);
   }, [listaMovimientos, filtroEstacion, fechaDesde, fechaHasta]);
+
+  useEffect(() => {
+    setPaginaActual(1)
+  }, [filtroEstacion, fechaDesde, fechaHasta])
+
+  const totalPaginas = Math.max(1, Math.ceil(movimientosFiltrados.length / movimientosPorPagina))
+  const inicioPagina = movimientosFiltrados.length === 0 ? 0 : (paginaActual - 1) * movimientosPorPagina
+  const movimientosPagina = movimientosFiltrados.slice(inicioPagina, inicioPagina + movimientosPorPagina)
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas)
+  }, [paginaActual, totalPaginas])
 
   const handleLimpiarFiltros = () => {
     setFechaDesde('')
@@ -249,7 +263,7 @@ export default function ModuloEstacionesClient({
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6 text-[#001F3F]">
+    <div className="w-full min-w-0 px-3 sm:px-5 lg:px-6 py-6 space-y-6 text-[#001F3F]">
       <header className="flex flex-col sm:flex-row justify-between items-center gap-4 pb-4 border-b border-slate-200">
         <div>
           <h1 className="text-xl md:text-2xl font-black uppercase italic tracking-tighter flex items-center gap-2">
@@ -340,7 +354,7 @@ export default function ModuloEstacionesClient({
                   <td colSpan={8} className="p-12 text-center text-slate-300 font-black uppercase text-[10px] tracking-widest italic">No existen registros contables.</td>
                 </tr>
               ) : (
-                movimientosFiltrados.map((m: any) => {
+                movimientosPagina.map((m: any) => {
                   const valAcreditacion = Number(m.acreditacion || 0);
                   const valConsumo = Number(m.consumo || 0);
                   const valSaldo = Number(m.saldo || 0);
@@ -382,6 +396,34 @@ export default function ModuloEstacionesClient({
             </tbody>
           </table>
         </div>
+        <footer className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {movimientosFiltrados.length === 0
+              ? '0 registros'
+              : `Mostrando ${inicioPagina + 1}-${Math.min(inicioPagina + movimientosPorPagina, movimientosFiltrados.length)} de ${movimientosFiltrados.length} registros`}
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setPaginaActual(pagina => Math.max(1, pagina - 1))}
+              disabled={paginaActual <= 1}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-[#001F3F] transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft size={14} /> Anterior
+            </button>
+            <span className="min-w-24 text-center text-[10px] font-black uppercase text-slate-500">
+              Página {paginaActual} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPaginaActual(pagina => Math.min(totalPaginas, pagina + 1))}
+              disabled={paginaActual >= totalPaginas}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-[#001F3F] transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Siguiente <ChevronRight size={14} />
+            </button>
+          </div>
+        </footer>
       </div>
 
       {/* MODAL */}

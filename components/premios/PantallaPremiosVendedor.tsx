@@ -13,10 +13,11 @@ interface PantallaPremiosVendedorProps {
     crear: boolean;
     editar: boolean;
     eliminar: boolean;
-  }
+  };
+  puedeSolicitarCanje: boolean;
 }
 
-export default function PantallaPremiosVendedor({ accionesPermitidas }: PantallaPremiosVendedorProps) {
+export default function PantallaPremiosVendedor({ puedeSolicitarCanje }: PantallaPremiosVendedorProps) {
   const [premios, setPremios] = useState<any[]>([])
   const [saldo, setSaldo] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -43,7 +44,7 @@ export default function PantallaPremiosVendedor({ accionesPermitidas }: Pantalla
   }, [cargarDatos])
 
   const handleCanjear = async (premio: any) => {
-    if (!accionesPermitidas.crear && !accionesPermitidas.editar) {
+    if (!puedeSolicitarCanje) {
       Swal.fire({
         title: '<span style="font-size:16px; font-weight:bold; color:#001F3F;">ACCESO DENEGADO</span>',
         text: 'Tu rol no dispone de permisos para solicitar canjes de premios.',

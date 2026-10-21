@@ -69,6 +69,22 @@ export async function getCampanaById(id: number) {
   return await getCampanaByIdAction(id)
 }
 
+function normalizarEntradaCampana(data: any) {
+  if (data instanceof FormData) {
+    return {
+      nombre: data.get('nombre')?.toString() ?? '',
+      fechaInicio: data.get('fecha_inicio')?.toString() ?? data.get('fechaInicio')?.toString() ?? '',
+      fechaFin: data.get('fecha_cierre')?.toString() ?? data.get('fechaFin')?.toString() ?? '',
+      descripcion: data.get('detalle')?.toString() ?? data.get('descripcion')?.toString() ?? '',
+      valor: data.get('valor')?.toString() ?? data.get('puntosOtorgados')?.toString() ?? '0',
+      estado: data.get('estado')?.toString() ?? '',
+      activa: data.get('activa')?.toString() ?? data.get('activo')?.toString() ?? ''
+    }
+  }
+
+  return data || {}
+}
+
 export async function crearCampanaAction(data: any) {
   try {
     const autorizado = await validarAccionSesion('campanas', 'crear')
@@ -76,16 +92,17 @@ export async function crearCampanaAction(data: any) {
       return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para CREAR campañas.' }
     }
 
-    const nombre = data.nombre?.trim().toUpperCase()
+    const payload = normalizarEntradaCampana(data)
+    const nombre = payload.nombre?.trim().toUpperCase()
     if (!nombre) {
       return { success: false, error: 'El nombre de la campaña es obligatorio.' }
     }
 
-    const fechaInicio = data.fechaInicio || data.fecha_inicio
-    const fechaFin = data.fechaFin || data.fecha_cierre
-    const descripcion = data.descripcion || data.detalle || ''
-    const montoEvidencia = data.valor !== undefined ? Number(data.valor) : (data.puntosOtorgados !== undefined ? Number(data.puntosOtorgados) : 0)
-    const esActiva = data.estado ? data.estado === 'Activa' : (data.activa !== undefined ? data.activa : (data.activo !== undefined ? data.activo : true))
+    const fechaInicio = payload.fechaInicio || payload.fecha_inicio
+    const fechaFin = payload.fechaFin || payload.fecha_cierre
+    const descripcion = payload.descripcion || payload.detalle || ''
+    const montoEvidencia = payload.valor !== undefined && payload.valor !== '' ? Number(payload.valor) : (payload.puntosOtorgados !== undefined ? Number(payload.puntosOtorgados) : 0)
+    const esActiva = payload.estado ? payload.estado === 'Activa' : (payload.activa !== undefined && payload.activa !== '' ? String(payload.activa) === 'true' : (payload.activo !== undefined && payload.activo !== '' ? String(payload.activo) === 'true' : true))
 
     if (!fechaInicio || !fechaFin) {
       return { success: false, error: 'Las fechas de inicio y cierre son obligatorias.' }

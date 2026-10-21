@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { registrarFacturaCombustible, eliminarFacturaCombustibleAction } from '@/app/actions/combustible'
-import { FileText, Plus, Trash2, Loader2, DollarSign, X, Edit2, Download, Fuel, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { FileText, Plus, Trash2, Loader2, DollarSign, X, Edit2, Download, Fuel, ShieldCheck, ShieldAlert, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import Swal from 'sweetalert2'
 import { exportarFacturasCombustibleExcel } from '@/app/actions/reportes-oficina'
 
@@ -30,6 +30,9 @@ export default function ModuloFacturasClient({
   const [fechaHasta, setFechaHasta] = useState('')
   const [filtroEstacion, setFiltroEstacion] = useState('')
   const [filtroVendedor, setFiltroVendedor] = useState('')
+  const [filtroFactura, setFiltroFactura] = useState('')
+  const [paginaActual, setPaginaActual] = useState(1)
+  const registrosPorPagina = 15
 
   const [metodoPago, setMetodoPago] = useState('CONVENIO')
   const [gasolineraId, setGasolineraId] = useState('')
@@ -78,6 +81,11 @@ export default function ModuloFacturasClient({
     if (filtroVendedor !== '') {
       aux = aux.filter(r => String(r?.chofer || '').trim().toUpperCase() === filtroVendedor.trim().toUpperCase())
     }
+
+    if (filtroFactura.trim() !== '') {
+      const numeroBuscado = filtroFactura.trim().toUpperCase()
+      aux = aux.filter(r => String(r?.numFactura || '').toUpperCase().includes(numeroBuscado))
+    }
     
     setRegistrosFiltrados(aux)
 
@@ -88,7 +96,11 @@ export default function ModuloFacturasClient({
     setTotalConsumido(tot)
     setTotalConvenio(conv)
     setTotalFueraConvenio(fuera)
-  }, [listaRegistros, fechaDesde, fechaHasta, filtroEstacion, filtroVendedor])
+  }, [listaRegistros, fechaDesde, fechaHasta, filtroEstacion, filtroVendedor, filtroFactura])
+
+  useEffect(() => {
+    setPaginaActual(1)
+  }, [fechaDesde, fechaHasta, filtroEstacion, filtroVendedor, filtroFactura])
 
   useEffect(() => {
     if (metodoPago === 'CONVENIO' && gasolineraId) {
@@ -104,6 +116,7 @@ export default function ModuloFacturasClient({
     setFechaHasta('')
     setFiltroEstacion('')
     setFiltroVendedor('')
+    setFiltroFactura('')
   }
 
   const abrirModalNuevo = () => {
@@ -186,6 +199,7 @@ export default function ModuloFacturasClient({
           gasolinera: estacionEncontrada || item.gasolinera
         } : item))
       } else {
+        setPaginaActual(1)
         const idNuevo = Date.now()
         setListaRegistros(prev => [{
           ...payload,
@@ -198,7 +212,8 @@ export default function ModuloFacturasClient({
       Swal.fire('Confirmado', editingId ? 'Factura actualizada con éxito.' : 'Factura registrada con éxito.', 'success')
       router.refresh()
     } else {
-      Swal.fire('Error de Validación', res.error || 'No se pudo guardar la transacción.', 'error')
+      const esDuplicada = res.error?.toLowerCase().includes('ya está registrada')
+      Swal.fire(esDuplicada ? 'Factura ya registrada' : 'Error de Validación', res.error || 'No se pudo guardar la transacción.', 'error')
       setLoading(false)
     }
   }
@@ -259,9 +274,17 @@ export default function ModuloFacturasClient({
   };
 
   const listaUnicaVendedores = Array.from(new Set(listaRegistros.map(r => r.chofer).filter(Boolean)))
+  const totalPaginas = Math.max(1, Math.ceil(registrosFiltrados.length / registrosPorPagina))
+  const inicioPagina = registrosFiltrados.length === 0 ? 0 : (paginaActual - 1) * registrosPorPagina + 1
+  const finPagina = Math.min(paginaActual * registrosPorPagina, registrosFiltrados.length)
+  const registrosPagina = registrosFiltrados.slice(inicioPagina - 1, finPagina)
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) setPaginaActual(totalPaginas)
+  }, [paginaActual, totalPaginas])
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6 text-[#001F3F]">
+    <div className="w-full min-w-0 px-3 py-6 sm:px-5 lg:px-6 space-y-6 text-[#001F3F]">
       
       {/* HEADER */}
       <header className="flex flex-col sm:flex-row justify-between items-center gap-4 pb-4 border-b border-slate-200">
@@ -312,7 +335,7 @@ export default function ModuloFacturasClient({
 
       {/* FILTROS CON BÚSQUEDA AUTOMÁTICA */}
       <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 shadow-inner flex flex-col lg:flex-row items-end gap-3 w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 flex-1 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3 flex-1 w-full">
           <div className="flex flex-col gap-1 w-full">
             <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">Desde</label>
             <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="w-full px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-white h-[38px] cursor-pointer" />
@@ -338,6 +361,19 @@ export default function ModuloFacturasClient({
                 <option key={idx} value={v}>{v}</option>
               ))}
             </select>
+          </div>
+          <div className="flex flex-col gap-1 w-full">
+            <label className="text-[9px] font-black uppercase tracking-widest text-slate-500 ml-1">Buscar factura</label>
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={filtroFactura}
+                onChange={(e) => setFiltroFactura(e.target.value)}
+                placeholder="NÚMERO DE FACTURA"
+                className="h-[38px] w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-bold uppercase"
+              />
+            </div>
           </div>
         </div>
         <div className="flex gap-2 w-full lg:w-auto shrink-0">
@@ -368,7 +404,7 @@ export default function ModuloFacturasClient({
                   </td>
                 </tr>
               ) : (
-                registrosFiltrados.map((r: any) => (
+                registrosPagina.map((r: any) => (
                   <tr key={r.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="p-4 pl-6 font-mono text-slate-500 whitespace-nowrap">
                       {r.fechaFactura 
@@ -428,6 +464,34 @@ export default function ModuloFacturasClient({
             </tbody>
           </table>
         </div>
+        <footer className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            {registrosFiltrados.length === 0
+              ? '0 registros'
+              : `Mostrando ${inicioPagina}-${finPagina} de ${registrosFiltrados.length} registros`}
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setPaginaActual(pagina => Math.max(1, pagina - 1))}
+              disabled={paginaActual <= 1}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-[#001F3F] transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft size={14} /> Anterior
+            </button>
+            <span className="min-w-24 text-center text-[10px] font-black uppercase text-slate-500">
+              Página {paginaActual} de {totalPaginas}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPaginaActual(pagina => Math.min(totalPaginas, pagina + 1))}
+              disabled={paginaActual >= totalPaginas}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-[10px] font-black uppercase text-[#001F3F] transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Siguiente <ChevronRight size={14} />
+            </button>
+          </div>
+        </footer>
       </div>
 
       {/* MODAL EDITAR / INGRESAR FACTURA */}

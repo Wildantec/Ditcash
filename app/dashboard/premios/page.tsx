@@ -13,6 +13,7 @@ export default async function PremiosRaizPage() {
     editar: userHasPermission(usuario, 'premios', 'editar'),
     eliminar: userHasPermission(usuario, 'premios', 'eliminar')
   }
+  const puedeSolicitarCanje = userHasPermission(usuario, 'canjes', 'crear')
 
   if (!accionesPermitidas.ver) {
     redirect('/dashboard');
@@ -22,5 +23,5 @@ export default async function PremiosRaizPage() {
     return <PanelAdminPremios accionesPermitidas={accionesPermitidas} />;
   }
 
-  return <PantallaPremiosVendedor accionesPermitidas={accionesPermitidas} />;
+  return <PantallaPremiosVendedor accionesPermitidas={accionesPermitidas} puedeSolicitarCanje={puedeSolicitarCanje} />;
 }
