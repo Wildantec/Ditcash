@@ -75,7 +75,7 @@ export async function crearPremioAction(formData: FormData) {
     revalidatePath('/dashboard/premios')
     return { success: true }
   } catch (error: any) {
-    console.error("Error real en Prisma:", error) 
+    console.error("Error al crear premio o cargar su imagen:", error)
     return { success: false, error: "Error al guardar el premio en el servidor." }
   }
 }
@@ -123,6 +123,7 @@ export async function actualizarPremioAction(id: number, formData: FormData) {
     revalidatePath('/dashboard/premios')
     return { success: true }
   } catch (error) {
+    console.error("Error al actualizar premio o cargar su imagen:", error)
     return { success: false, error: "No se pudo actualizar el premio" }
   }
 }

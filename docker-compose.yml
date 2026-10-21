@@ -40,6 +40,9 @@ services:
       DATABASE_URL: "mysql://root:Wildantec2026@db-ditcash:3306/ditcash_db"
       NODE_ENV: production
       AUTH_SECRET: ${AUTH_SECRET:?Configura AUTH_SECRET en el .env del servidor}
+      NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: ${NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME:?Configura NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME en el .env del servidor}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:?Configura CLOUDINARY_API_KEY en el .env del servidor}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:?Configura CLOUDINARY_API_SECRET en el .env del servidor}
       API_CONTABLE_URL: "https://grupoaraujos.cloud"
       API_CONTABLE_EMAIL: "soporte@disar-ec.com"
       API_CONTABLE_PASSWORD: "admin123"
