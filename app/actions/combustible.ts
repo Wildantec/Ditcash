@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { currentUserHasPermission, getCurrentUser } from '@/lib/authorization'
+import { validarServicio } from '@/lib/control-aceite'
 
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
   return currentUserHasPermission(moduloId, accion)
@@ -337,7 +338,8 @@ export async function crearVehiculoAction(data: {
 
 export async function registrarMantenimientoAction(data: {
   placa: string;
-  kmMantenimiento: number;
+  kmMantenimiento: number | null;
+  esCambioAceite: boolean;
   taller: string;
   factura: string;
   costo: number;
@@ -350,53 +352,96 @@ export async function registrarMantenimientoAction(data: {
       return { success: false, error: 'Acceso Denegado: Tu rol no tiene permisos para REGISTRAR mantenimientos.' }
     }
 
-    const vehiculo = await prisma.vehiculo.findUnique({ 
-      where: { placa: data.placa },
-      include: { asignaciones: { where: { fechaFin: null }, include: { user: true } } }
-    })
-    if (!vehiculo) return { success: false, error: 'Vehículo no encontrado.' }
+    validarServicio(data)
+    const fecha = new Date(data.fechaFactura)
+    const registro = await prisma.$transaction(async tx => {
+      const vehiculo = await tx.vehiculo.findUnique({
+        where: { placa: data.placa.trim().toUpperCase() },
+        include: { asignaciones: { where: { fechaFin: null }, include: { user: true } } }
+      })
+      if (!vehiculo) throw new Error('Vehículo no encontrado.')
 
-    const nombreChofer = vehiculo.asignaciones?.[0]?.user?.nombre || "SIN ASIGNAR"
-
-    const kmInicialPeriodo = vehiculo.kmActual 
-    if (data.kmMantenimiento < kmInicialPeriodo) {
-      return { 
-        success: false, 
-        error: `Error de Tablero: El kilometraje de llegada ingresado (${data.kmMantenimiento.toLocaleString()} KM) no puede ser menor al kilometraje inicial registrado anteriormente (${kmInicialPeriodo.toLocaleString()} KM).` 
+      const ultimoAceite = await tx.kardexVehiculo.findFirst({
+        where: { vehiculoId: vehiculo.id, esCambioAceite: true },
+        orderBy: [{ fechaTransaccion: 'desc' }, { id: 'desc' }]
+      })
+      if (data.esCambioAceite) {
+        const anterior = await tx.kardexVehiculo.findFirst({
+          where: { vehiculoId: vehiculo.id, esCambioAceite: true, fechaTransaccion: { lte: fecha } },
+          orderBy: [{ fechaTransaccion: 'desc' }, { id: 'desc' }]
+        })
+        const siguiente = await tx.kardexVehiculo.findFirst({
+          where: { vehiculoId: vehiculo.id, esCambioAceite: true, fechaTransaccion: { gt: fecha } },
+          orderBy: [{ fechaTransaccion: 'asc' }, { id: 'asc' }]
+        })
+        const km = data.kmMantenimiento!
+        if ((anterior?.kilometrajeServicio != null && km < anterior.kilometrajeServicio) ||
+            (siguiente?.kilometrajeServicio != null && km > siguiente.kilometrajeServicio)) {
+          throw new Error('El kilometraje no concuerda con los cambios de aceite anteriores o posteriores.')
+        }
       }
-    }
+      const actual = Math.max(vehiculo.kmActual, data.kmMantenimiento ?? vehiculo.kmActual)
+      const esUltimoAceite = data.esCambioAceite && (!ultimoAceite || fecha >= ultimoAceite.fechaTransaccion)
+      const baseAceite = esUltimoAceite ? data.kmMantenimiento! : vehiculo.kmUltimoAceite
+      const ultimoServicio = await tx.kardexVehiculo.findFirst({
+        where: { vehiculoId: vehiculo.id, tipoMovimiento: 'MANTENIMIENTO' },
+        orderBy: [{ fechaTransaccion: 'desc' }, { id: 'desc' }]
+      })
+      const esUltimoServicio = !ultimoServicio || fecha >= ultimoServicio.fechaTransaccion
 
-    await prisma.vehiculo.update({
-      where: { id: vehiculo.id },
-      data: {
-        kmUltimoAceite: kmInicialPeriodo,
-        kmActual: data.kmMantenimiento,
-        tallerMantenimiento: data.taller.toUpperCase().trim(),
-        numFacturaMantenimiento: data.factura.toUpperCase().trim(),
-        costoUltimoMantenimiento: data.costo,
-        fechaMantenimiento: new Date(data.fechaFactura),
-        alertaMantenimiento: false 
-      }
-    })
-
-    await prisma.kardexVehiculo.create({
-      data: {
+      await tx.vehiculo.update({ where: { id: vehiculo.id }, data: {
+        kmActual: actual,
+        ...(esUltimoAceite ? { kmUltimoAceite: baseAceite } : {}),
+        alertaMantenimiento: actual - baseAceite >= vehiculo.intervaloAlerta,
+        ...(esUltimoServicio ? {
+          tallerMantenimiento: data.taller.toUpperCase().trim(),
+          numFacturaMantenimiento: data.factura.toUpperCase().trim() || 'S/N',
+          costoUltimoMantenimiento: data.costo,
+          fechaMantenimiento: fecha
+        } : {})
+      } })
+      return tx.kardexVehiculo.create({ data: {
         vehiculoId: vehiculo.id,
-        tipoMovimiento: "MANTENIMIENTO",
-        kmEnEseMomento: data.kmMantenimiento,
-        kmMantenimiento: kmInicialPeriodo,
+        fechaTransaccion: fecha,
+        tipoMovimiento: 'MANTENIMIENTO',
+        esCambioAceite: data.esCambioAceite,
+        kilometrajeServicio: data.kmMantenimiento,
+        kmEnEseMomento: data.kmMantenimiento ?? vehiculo.kmActual,
+        kmMantenimiento: Math.min(vehiculo.kmActual, data.kmMantenimiento ?? vehiculo.kmActual),
         costoTransaccion: data.costo,
         taller: data.taller.toUpperCase().trim(),
-        factura: data.factura.toUpperCase().trim(),
-        choferEnEseMomento: nombreChofer.toUpperCase(),
+        factura: data.factura.toUpperCase().trim() || 'S/N',
+        choferEnEseMomento: (vehiculo.asignaciones[0]?.user?.nombre || 'SIN ASIGNAR').toUpperCase(),
         observaciones: data.descripcion.toUpperCase().trim()
-      }
-    })
+      }, include: { vehiculo: { include: { asignaciones: { where: { fechaFin: null }, include: { user: true } } } } } })
+    }, { isolationLevel: 'Serializable' })
 
-    revalidatePath('/dashboard/combustible/mantenimiento')
-    return { success: true }
+    revalidatePath('/dashboard/combustible/vehiculos')
+    revalidatePath('/dashboard/control-flota')
+    revalidatePath('/dashboard')
+    return { success: true, registro }
   } catch (error: any) {
     return { success: false, error: error.message }
+  }
+}
+
+export async function actualizarIntervaloAceiteAction(vehiculoId: number, intervalo: number) {
+  try {
+    if (!await validarAccionSesion('vehiculos', 'editar')) return { success: false, error: 'No tienes permiso para editar el intervalo.' }
+    if (!Number.isSafeInteger(intervalo) || intervalo <= 0) return { success: false, error: 'Ingresa un intervalo entero mayor a cero.' }
+    await prisma.$transaction(async tx => {
+      const vehiculo = await tx.vehiculo.findUniqueOrThrow({ where: { id: vehiculoId } })
+      await tx.vehiculo.update({ where: { id: vehiculoId }, data: {
+        intervaloAlerta: intervalo,
+        alertaMantenimiento: vehiculo.kmActual - vehiculo.kmUltimoAceite >= intervalo
+      } })
+    }, { isolationLevel: 'Serializable' })
+    revalidatePath('/dashboard/combustible/vehiculos')
+    revalidatePath('/dashboard/control-flota')
+    revalidatePath('/dashboard')
+    return { success: true }
+  } catch {
+    return { success: false, error: 'No se pudo actualizar el intervalo.' }
   }
 }
 

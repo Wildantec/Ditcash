@@ -3,6 +3,39 @@
 import { prisma } from '@/lib/prisma'
 import * as ExcelJS from 'exceljs'
 import { currentUserHasPermission } from '@/lib/authorization'
+import { calcularControlAceite } from '@/lib/control-aceite'
+
+export async function exportarReporteTallerExcel(filtros: { tipo: 'aceite' | 'general'; placa?: string; vendedorId?: string; fechaDesde?: string; fechaHasta?: string }) {
+  try {
+    if (!await currentUserHasPermission('vehiculos', 'ver') && !await currentUserHasPermission('vehiculos_cont', 'ver')) return { success: false, error: 'No tienes permiso para exportar vehículos.' }
+    const registros = await prisma.kardexVehiculo.findMany({ include: { vehiculo: { include: { asignaciones: { where: { fechaFin: null } } } } } })
+    const vendedor = filtros.vendedorId ? await prisma.user.findUnique({ where: { id: Number(filtros.vendedorId) }, select: { nombre: true } }) : null
+    const filas = calcularControlAceite(registros).filter(k => {
+      const fecha = k.fechaTransaccion.toISOString().slice(0, 10)
+      return k.tipoMovimiento === 'MANTENIMIENTO' && (filtros.tipo !== 'aceite' || k.esCambioAceite === true) &&
+        (!filtros.placa || k.vehiculo.placa === filtros.placa) &&
+        (!filtros.vendedorId || (vendedor?.nombre && k.choferEnEseMomento?.toUpperCase().includes(vendedor.nombre.toUpperCase())) || k.vehiculo.asignaciones.some(a => String(a.userId) === filtros.vendedorId)) &&
+        (!filtros.fechaDesde || fecha >= filtros.fechaDesde) && (!filtros.fechaHasta || fecha <= filtros.fechaHasta)
+    })
+    const libro = new ExcelJS.Workbook()
+    const hoja = libro.addWorksheet(filtros.tipo === 'aceite' ? 'Rendimiento aceites' : 'Gastos taller')
+    hoja.addRow(['Fecha', 'Conductor', 'Placa', 'Taller', 'Factura', 'Detalle', 'Tipo', 'KM registrado', ...(filtros.tipo === 'aceite' ? ['KM aceite anterior', 'KM entre cambios', 'Intervalo KM', 'Exceso KM', 'Estado'] : []), 'Costo'])
+    for (const k of filas) {
+      const fila = hoja.addRow([k.fechaTransaccion.toISOString().slice(0, 10), k.choferEnEseMomento, k.vehiculo.placa, k.taller, k.factura, k.observaciones, k.esCambioAceite === true ? 'CAMBIO DE ACEITE' : k.esCambioAceite === false ? 'SERVICIO GENERAL' : 'HISTÓRICO SIN CLASIFICAR', k.kilometrajeServicio, ...(filtros.tipo === 'aceite' ? [k.kmAceiteAnterior, k.recorridoAceite, k.intervaloAceite, k.excesoAceite, k.estadoAceite] : []), k.costoTransaccion])
+      fila.getCell(fila.cellCount).numFmt = '$#,##0.00'
+    }
+    const total = hoja.addRow(['TOTAL', ...Array(filtros.tipo === 'aceite' ? 12 : 7).fill(''), filas.reduce((s, k) => s + k.costoTransaccion, 0)])
+    total.getCell(total.cellCount).numFmt = '$#,##0.00'
+    hoja.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    hoja.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF001F3F' } }
+    hoja.columns.forEach(columna => { columna.width = 22 })
+    hoja.views = [{ state: 'frozen', ySplit: 1 }]
+    const buffer = await libro.xlsx.writeBuffer()
+    return { success: true, data: Array.from(new Uint8Array(buffer)) }
+  } catch {
+    return { success: false, error: 'No se pudo exportar el reporte de taller.' }
+  }
+}
 
 async function validarAccionSesion(moduloId: string, accion: 'ver' | 'crear' | 'editar' | 'eliminar') {
   return currentUserHasPermission(moduloId, accion)

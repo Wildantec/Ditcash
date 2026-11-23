@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import PendientesFacturacion, { ListadoPendientesFacturacion, type Pendiente } from './PendientesFacturacion'
+import { calificacionFacturacion } from '@/lib/facturacion-pendientes'
 import {
   BarChart3, CalendarDays, Check, CircleDollarSign, ClipboardCheck, LayoutGrid, LoaderCircle,
   Plus, Save, Star, X
@@ -17,7 +19,7 @@ type Semana = {
 
 type Vendedor = { id: number; nombre: string; apellido: string | null }
 
-type Evaluacion = {
+export type Evaluacion = {
   id: number
   semanaId: number
   vendedorId: number
@@ -29,11 +31,14 @@ type Evaluacion = {
   entregaMercaderia: boolean
   superEstrella: boolean
   observacion: string | null
+  revision: number
+  calificacionCierre: string | null
+  pendientes: Pendiente[]
   vendedor: Vendedor
   semana: Semana
 }
 
-type Borrador = Omit<Evaluacion, 'id' | 'semanaId' | 'vendedorId' | 'vendedor' | 'semana'>
+type Borrador = Pick<Evaluacion, 'numContratos' | 'totalVentas' | 'contratosFisicos' | 'infoCompleta' | 'requisitos' | 'entregaMercaderia' | 'superEstrella' | 'observacion'>
 type Resumen = { contratos: number; ventas: number; estrellas: number; superEstrellas: number; fallos: number }
 type ColumnaReporte = { id: string; nombre: string; subtitulo: string; semanasIds: number[] }
 
@@ -88,7 +93,7 @@ function formatoFecha(fecha: string) {
 
 export default function FacturacionClient({ semanas: semanasIniciales, vendedores, puedeCrear, puedeEditar }: Props) {
   const hoy = new Date()
-  const [activeTab, setActiveTab] = useState<'evaluacion' | 'reportes'>('evaluacion')
+  const [activeTab, setActiveTab] = useState<'evaluacion' | 'reportes' | 'pendientes'>('evaluacion')
   const [semanas, setSemanas] = useState(semanasIniciales)
   const [semanaId, setSemanaId] = useState<number | ''>(semanasIniciales[0]?.id ?? '')
   const [evaluaciones, setEvaluaciones] = useState<Record<number, Evaluacion>>({})
@@ -112,6 +117,8 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
   const [semanasReporte, setSemanasReporte] = useState<Semana[]>([])
   const [datosReporte, setDatosReporte] = useState<Evaluacion[]>([])
   const [generandoReporte, setGenerandoReporte] = useState(false)
+  const [pendientesVendedorId, setPendientesVendedorId] = useState<number | null>(null)
+  const [recarga, setRecarga] = useState(0)
 
   useEffect(() => {
     let cancelado = false
@@ -149,7 +156,7 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
 
     void cargarEvaluaciones()
     return () => { cancelado = true }
-  }, [semanaId, vendedores])
+  }, [semanaId, vendedores, recarga])
 
   const semanaSeleccionada = useMemo(
     () => semanas.find(semana => semana.id === Number(semanaId)),
@@ -198,11 +205,10 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
       .reduce<Resumen>((resumen, evaluacion) => {
         resumen.contratos += evaluacion.numContratos
         resumen.ventas += evaluacion.totalVentas
-        if (evaluacion.numContratos > 0) {
-          if (evaluacion.superEstrella) resumen.superEstrellas += 1
-          else if (CRITERIOS.every(criterio => evaluacion[criterio.key])) resumen.estrellas += 1
-          else resumen.fallos += 1
-        }
+        const calificacion = calificacionFacturacion(evaluacion)
+        if (calificacion === 'SUPER') resumen.superEstrellas += 1
+        else if (calificacion === 'ESTRELLA') resumen.estrellas += 1
+        else if (calificacion === 'TRISTE') resumen.fallos += 1
         return resumen
       }, { contratos: 0, ventas: 0, estrellas: 0, superEstrellas: 0, fallos: 0 })
   }
@@ -210,11 +216,10 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
   const resumenGlobal = useMemo(() => evaluacionesReporte.reduce<Resumen>((resumen, evaluacion) => {
     resumen.contratos += evaluacion.numContratos
     resumen.ventas += evaluacion.totalVentas
-    if (evaluacion.numContratos > 0) {
-      if (evaluacion.superEstrella) resumen.superEstrellas += 1
-      else if (CRITERIOS.every(criterio => evaluacion[criterio.key])) resumen.estrellas += 1
-      else resumen.fallos += 1
-    }
+    const calificacion = calificacionFacturacion(evaluacion)
+    if (calificacion === 'SUPER') resumen.superEstrellas += 1
+    else if (calificacion === 'ESTRELLA') resumen.estrellas += 1
+    else if (calificacion === 'TRISTE') resumen.fallos += 1
     return resumen
   }, { contratos: 0, ventas: 0, estrellas: 0, superEstrellas: 0, fallos: 0 }), [evaluacionesReporte])
 
@@ -223,6 +228,17 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
       ...actuales,
       [vendedorId]: { ...actuales[vendedorId], [campo]: valor }
     }))
+  }
+
+  function recibirEvaluacionActualizada(evaluacion: Evaluacion) {
+    const anterior = evaluaciones[evaluacion.vendedorId]
+    const borrador = borradores[evaluacion.vendedorId]
+    const hayCambios = anterior && borrador && (Object.keys(BORRADOR_VACIO) as (keyof Borrador)[]).some(key => (borrador[key] ?? '') !== (anterior[key] ?? ''))
+    if (evaluacion.semanaId === semanaId && !hayCambios) {
+      setEvaluaciones(actuales => ({ ...actuales, [evaluacion.vendedorId]: evaluacion }))
+      setBorradores(actuales => ({ ...actuales, [evaluacion.vendedorId]: { ...evaluacion, observacion: evaluacion.observacion || '' } }))
+    }
+    setDatosReporte(actuales => actuales.map(e => e.id === evaluacion.id ? evaluacion : e))
   }
 
   async function generarReporte() {
@@ -266,11 +282,12 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
       const response = await fetch('/api/facturacion/evaluaciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...borrador, semanaId: Number(semanaId), vendedorId })
+        body: JSON.stringify({ ...borrador, revision: evaluaciones[vendedorId]?.revision, semanaId: Number(semanaId), vendedorId })
       })
       const result = await response.json()
       if (!response.ok || !result.success) throw new Error(result.error || 'No se pudo guardar la evaluación.')
       setEvaluaciones(actuales => ({ ...actuales, [vendedorId]: result.data as Evaluacion }))
+      setBorradores(actuales => ({ ...actuales, [vendedorId]: { ...result.data, observacion: result.data.observacion || '' } }))
       const vendedor = vendedores.find(item => item.id === vendedorId)
       setMensaje(vendedor ? `Evaluación de ${nombreVendedor(vendedor)} guardada.` : 'Evaluación guardada.')
     } catch (caught) {
@@ -355,6 +372,7 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
           >
             <BarChart3 size={15} /> Reportes
           </button>
+          <button type="button" onClick={() => setActiveTab('pendientes')} aria-pressed={activeTab === 'pendientes'} className={`rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-wider ${activeTab === 'pendientes' ? 'bg-[#001F3F] text-[#FFB800]' : 'text-slate-500 hover:bg-white'}`}>Contratos por sumar</button>
         </nav>
 
         {(error || mensaje) && (
@@ -362,6 +380,8 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
             {error || mensaje}
           </div>
         )}
+
+        {activeTab === 'pendientes' && <ListadoPendientesFacturacion puedeEditar={puedeEditar} actualizar={recibirEvaluacionActualizada} />}
 
         {activeTab === 'evaluacion' && (
           <>
@@ -498,11 +518,10 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
                                   .reduce<Resumen>((total, evaluacion) => {
                                     total.contratos += evaluacion.numContratos
                                     total.ventas += evaluacion.totalVentas
-                                    if (evaluacion.numContratos > 0) {
-                                      if (evaluacion.superEstrella) total.superEstrellas += 1
-                                      else if (CRITERIOS.every(criterio => evaluacion[criterio.key])) total.estrellas += 1
-                                      else total.fallos += 1
-                                    }
+                                    const calificacion = calificacionFacturacion(evaluacion)
+                                    if (calificacion === 'SUPER') total.superEstrellas += 1
+                                    else if (calificacion === 'ESTRELLA') total.estrellas += 1
+                                    else if (calificacion === 'TRISTE') total.fallos += 1
                                     return total
                                   }, { contratos: 0, ventas: 0, estrellas: 0, superEstrellas: 0, fallos: 0 })
                                 return (
@@ -547,6 +566,7 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
                 <ClipboardCheck size={17} className="text-[#D99A00]" /> Evaluaciones por vendedor
               </h2>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">{vendedores.length} vendedores</span>
+              <button type="button" onClick={() => setRecarga(valor => valor + 1)} className="rounded-lg border px-3 py-2 text-xs font-bold">Recargar semana</button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1120px] border-collapse text-left">
@@ -568,12 +588,16 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
                     const puedeGuardar = existente ? puedeEditar : puedeCrear
                     const cumplioCalidad = CRITERIOS.every(criterio => draft[criterio.key])
                     const necesitaObservacion = draft.numContratos > 0 && !cumplioCalidad
+                    const abiertos = (existente?.pendientes || []).filter(p => !p.regularizadoEn)
+                    const hayCambios = existente && (Object.keys(BORRADOR_VACIO) as (keyof Borrador)[]).some(key => (draft[key] ?? '') !== (existente[key] ?? ''))
 
                     return (
                       <tr key={vendedor.id} className="align-top transition hover:bg-amber-50/30">
                         <td className="px-4 py-4">
                           <div className="min-w-36 font-black text-xs uppercase text-[#001F3F]">{nombreVendedor(vendedor)}</div>
                           <div className="mt-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">{existente ? 'Evaluado' : 'Pendiente'}</div>
+                          {existente && <button type="button" disabled={Boolean(hayCambios) || guardandoId === vendedor.id} title={hayCambios ? 'Guarda los cambios antes de abrir los pendientes.' : 'Ver contratos pendientes de sumar'} onClick={() => setPendientesVendedorId(vendedor.id)} className="mt-2 block rounded-lg bg-amber-50 px-2 py-2 text-left text-[10px] font-bold text-amber-900 disabled:opacity-50">{abiertos.length ? `Por sumar: ${abiertos.reduce((s, p) => s + p.cantidad, 0)} contratos · $${abiertos.reduce((s, p) => s + Number(p.valor), 0).toFixed(2)}` : 'Ver / registrar pendientes'}</button>}
+                          {hayCambios && <p className="mt-1 text-[9px] text-slate-500">Guarda para gestionar pendientes.</p>}
                         </td>
                         <td className="px-3 py-3">
                           <input
@@ -662,6 +686,8 @@ export default function FacturacionClient({ semanas: semanasIniciales, vendedore
           </>
         )}
       </div>
+
+      {pendientesVendedorId !== null && evaluaciones[pendientesVendedorId] && <PendientesFacturacion evaluacion={evaluaciones[pendientesVendedorId]} puedeEditar={puedeEditar} cerrar={() => setPendientesVendedorId(null)} actualizar={recibirEvaluacionActualizada} />}
 
       {modalSemana && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#001F3F]/70 p-4 backdrop-blur-sm">

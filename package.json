@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "postinstall": "prisma generate",
+    "prebuild": "prisma generate",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:prisma": "node --import tsx --test tests/prisma-client.test.ts",
     "migrate:roles": "tsx prisma/migrate-role-permissions.ts"
   },
   "dependencies": {

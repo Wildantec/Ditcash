@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser, userHasPermission } from '@/lib/authorization'
+import { calificacionFacturacion, semanaFinalizada, validarTotalesRegularizados } from '@/lib/facturacion-pendientes'
 
 export async function GET(request: Request) {
   try {
@@ -23,7 +24,8 @@ export async function GET(request: Request) {
       where: semanaId === undefined ? {} : { semanaId },
       include: {
         vendedor: { select: { id: true, nombre: true, apellido: true } },
-        semana: true
+        semana: true,
+        pendientes: { orderBy: { creadoEn: 'desc' } }
       },
       orderBy: { vendedor: { nombre: 'asc' } }
     })
@@ -91,11 +93,16 @@ export async function POST(request: Request) {
     const evaluacion = await prisma.$transaction(async (transaction) => {
       const existente = await transaction.evaluacionVendedor.findUnique({
         where: { semanaId_vendedorId: { semanaId, vendedorId } },
-        select: { id: true }
+        include: { pendientes: true, semana: true }
       })
       const accion = existente ? 'editar' : 'crear'
       if (!userHasPermission(usuario, 'facturacion', accion)) {
         throw new Error(`PERMISSION_DENIED:${accion}`)
+      }
+
+      if (existente) {
+        if (Number(data.revision) !== existente.revision) throw new Error('STALE_EVALUATION')
+        validarTotalesRegularizados(numContratos, totalVentas, existente.pendientes)
       }
 
       const values = {
@@ -112,16 +119,24 @@ export async function POST(request: Request) {
       if (existente) {
         return transaction.evaluacionVendedor.update({
           where: { semanaId_vendedorId: { semanaId, vendedorId } },
-          data: values
+          data: { ...values, revision: { increment: 1 }, ...(semanaFinalizada(existente.semana.fechaFin) ? { calificacionCierre: calificacionFacturacion(existente) } : {}) },
+          include: { pendientes: true, semana: true, vendedor: { select: { id: true, nombre: true, apellido: true } } }
         })
       }
       return transaction.evaluacionVendedor.create({
-        data: { semanaId, vendedorId, ...values }
+        data: { semanaId, vendedorId, ...values },
+        include: { pendientes: true, semana: true, vendedor: { select: { id: true, nombre: true, apellido: true } } }
       })
-    })
+    }, { isolationLevel: 'Serializable' })
 
     return NextResponse.json({ success: true, data: evaluacion })
   } catch (error) {
+    if (error instanceof Error && error.message === 'STALE_EVALUATION' || error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return NextResponse.json({ success: false, error: 'La evaluación cambió. Recarga la semana antes de guardar para conservar los contratos regularizados.' }, { status: 409 })
+    }
+    if (error instanceof Error && error.message.startsWith('Los totales no pueden')) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
+    }
     if (error instanceof SyntaxError) {
       return NextResponse.json({ success: false, error: 'El cuerpo de la solicitud no contiene JSON válido.' }, { status: 400 })
     }

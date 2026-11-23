@@ -55,7 +55,7 @@ export default async function DashboardServicioTecnico() {
       <header className="mb-10 pb-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-1.5 h-6 bg-[#FFB800] rounded-full" />
-          <h1 className="text-2xl font-black uppercase italic tracking-tighter">Panel de Soporte y Activos</h1>
+          <h1 className="text-2xl font-black uppercase italic tracking-tighter">Control de Flota</h1>
         </div>
         <p className="text-slate-400 font-bold text-[11px] uppercase tracking-[0.2em] mt-1">
           Gestión de infraestructura logística de Ditec 2026

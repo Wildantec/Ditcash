@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { logoutAction } from '@/app/actions/login'
 import { 
   BarChart3, Gift, ChevronDown, LogOut, Menu, X, Fuel, 
-  Settings, Wrench, Search, FileText
+  Settings, Wrench, Search, FileText, ChevronLeft, ChevronRight
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -18,6 +18,7 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
   const pathname = usePathname()
   const role = roleProp?.toUpperCase() || 'VENDEDOR'
   const [isOpen, setIsOpen] = useState(false)
+  const [colapsado, setColapsado] = useState(false)
   const [openSections, setOpenSections] = useState<{ [key: string]: boolean }>({
     operaciones: false,
     incentivos: false,
@@ -32,8 +33,8 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
       setOpenSections(prev => ({ ...prev, contabilidad: true }))
     } else if (pathname.startsWith('/dashboard/facturacion')) {
       setOpenSections(prev => ({ ...prev, finanzas: true }))
-    } else if (pathname.includes('/servicio-tecnico/')) {
-      setOpenSections(prev => ({ ...prev, servicio_tecnico: true }))
+    } else if (pathname.startsWith('/dashboard/servicio-tecnico')) {
+      setOpenSections(prev => ({ ...prev, reparaciones: true }))
     } else if (pathname.includes('/vendedores') || pathname.includes('/campanas') || pathname.includes('/canjes')) {
       setOpenSections(prev => ({ ...prev, operaciones: true }))
     } else if (pathname.includes('/premios') || pathname.includes('/inventario') || pathname.includes('/bodegas')) {
@@ -99,10 +100,18 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
     },
     {
       id: 'servicio_tecnico',
-      label: 'Servicio Técnico',
+      label: 'Control de Flota',
       icon: Wrench,
       submodulos: [
         { href: '/dashboard/combustible/vehiculos', label: 'Flota de Vehículos', permisoKey: 'vehiculos' }
+      ]
+    },
+    {
+      id: 'reparaciones',
+      label: 'Servicio Técnico',
+      icon: Wrench,
+      submodulos: [
+        { href: '/dashboard/servicio-tecnico', label: 'Reparaciones y Reportes', permisoKey: 'servicio_tecnico' }
       ]
     },
     {
@@ -118,20 +127,25 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
 
   return (
     <>
-      <button type="button" onClick={() => setIsOpen(!isOpen)} className="lg:hidden fixed top-4 left-4 z-[60] bg-[#001F3F] text-[#FFB800] p-3 rounded-xl shadow-2xl cursor-pointer">
+      <button type="button" onClick={() => setIsOpen(!isOpen)} aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'} aria-expanded={isOpen} aria-controls="menu-principal" className="lg:hidden fixed top-4 left-4 z-[60] bg-[#001F3F] text-[#FFB800] p-3 rounded-xl shadow-2xl cursor-pointer">
         {isOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
       {isOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[40] lg:hidden" onClick={closeSidebar} />}
 
-      <aside className={`fixed top-0 left-0 h-screen bg-[#001F3F] text-white flex flex-col z-[50] transition-transform duration-300 w-72 ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:sticky lg:w-64 border-r border-white/5`}>
-        <div className="p-8">
-          <h2 className="text-[#FFB800] text-3xl font-black italic tracking-tighter">DIT<span className="text-white">CASH</span></h2>
-          <p className="text-[10px] text-slate-400 tracking-[1px] uppercase font-bold mt-1">Panel Control</p>
+      <aside id="menu-principal" className={`fixed top-0 left-0 h-screen bg-[#001F3F] text-white flex flex-col shrink-0 z-[50] transition-all duration-300 w-72 ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 lg:sticky ${colapsado ? 'lg:w-20' : 'lg:w-64'} border-r border-white/5`}>
+        <div className={`flex items-center justify-between p-8 ${colapsado ? 'lg:justify-center lg:px-2' : ''}`}>
+          <div className={colapsado ? 'lg:hidden' : ''}>
+            <h2 className="text-[#FFB800] text-3xl font-black italic tracking-tighter">DIT<span className="text-white">CASH</span></h2>
+            <p className="text-[10px] text-slate-400 tracking-[1px] uppercase font-bold mt-1">Panel Control</p>
+          </div>
+          <button type="button" onClick={() => setColapsado(valor => !valor)} aria-controls="menu-principal" aria-expanded={!colapsado} aria-label={colapsado ? 'Ampliar menú' : 'Contraer menú'} title={colapsado ? 'Ampliar menú' : 'Contraer menú'} className="hidden lg:block rounded-lg p-2 text-[#FFB800] hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-[#FFB800]">
+            {colapsado ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
         <nav className="flex-grow flex flex-col mt-2 overflow-y-auto select-none gap-1 scrollbar-none">
           
-          <NavLink href="/dashboard" label="Resumen Global" icon={BarChart3} onClick={closeSidebar} isActive={pathname === '/dashboard'} />
+          <NavLink href="/dashboard" label="Resumen Global" icon={BarChart3} onClick={closeSidebar} isActive={pathname === '/dashboard'} colapsado={colapsado} />
           
           {menuEstructura.map((seccion) => {
             const submodulosPermitidos = seccion.submodulos.filter((sub: any) => {
@@ -148,7 +162,7 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
                 <button 
                   type="button"
                   onClick={() => toggleSection(seccion.id)}
-                  className="w-full flex items-center justify-between px-8 py-3.5 text-slate-400 hover:bg-[#002d5c] hover:text-white transition-all border-l-4 border-transparent uppercase text-[11px] font-black tracking-widest cursor-pointer"
+                  className={`w-full flex items-center justify-between px-8 py-3.5 text-slate-400 hover:bg-[#002d5c] hover:text-white transition-all border-l-4 border-transparent uppercase text-[11px] font-black tracking-widest cursor-pointer ${colapsado ? 'lg:hidden' : ''}`}
                 >
                   <div className="flex items-center gap-4">
                     <seccion.icon size={15} strokeWidth={2.5} />
@@ -156,8 +170,8 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
                   </div>
                   <ChevronDown size={13} className={`transform transition-transform duration-200 ${isOpenSection ? 'rotate-180 text-[#FFB800]' : ''}`} />
                 </button>
-                {isOpenSection && (
-                  <div className="bg-[#001833]/40 border-y border-white/5 py-1 space-y-0.5">
+                {(isOpenSection || colapsado) && (
+                  <div className={`bg-[#001833]/40 border-y border-white/5 py-1 space-y-0.5 ${!isOpenSection ? 'hidden lg:block' : ''}`}>
                     {submodulosPermitidos.map((sub, sIndex) => {
                       const isSubActive = sub.href === '/dashboard/canjes'
                         ? pathname === sub.href
@@ -170,6 +184,8 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
                           label={sub.label}
                           onClick={closeSidebar}
                           isActive={isSubActive}
+                          colapsado={colapsado}
+                          icon={seccion.icon}
                         />
                       )
                     })}
@@ -179,10 +195,10 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
             );
           })}
         </nav>
-        <div className="p-6 border-t border-white/10 bg-[#001730]">
+        <div className={`p-6 border-t border-white/10 bg-[#001730] ${colapsado ? 'lg:p-2' : ''}`}>
           <form action={logoutAction}>
-            <button type="submit" className="flex items-center gap-4 px-8 py-3.5 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-xl w-full text-left transition-all cursor-pointer">
-              <LogOut size={15} /> <span>Cerrar Sesión</span>
+            <button type="submit" title="Cerrar sesión" aria-label="Cerrar sesión" className={`flex items-center gap-4 px-8 py-3.5 text-red-400 font-black text-[11px] uppercase tracking-widest hover:bg-red-500/10 rounded-xl w-full text-left transition-all cursor-pointer ${colapsado ? 'lg:px-0 lg:justify-center' : ''}`}>
+              <LogOut size={15} /> <span className={colapsado ? 'lg:hidden' : ''}>Cerrar Sesión</span>
             </button>
           </form>
         </div>
@@ -191,36 +207,40 @@ export default function SidebarDitcash({ role: roleProp, permisos }: SidebarProp
   )
 }
 
-function NavLink({ href, icon: IconComponent, label, onClick, isActive }: any) {
+function NavLink({ href, icon: IconComponent, label, onClick, isActive, colapsado }: any) {
   return (
     <Link 
       href={href} 
       onClick={onClick} 
+      title={label}
+      aria-label={label}
       className={`flex items-center gap-4 px-8 py-3.5 transition-all border-l-4 ${
         isActive 
           ? 'bg-[#FFB800]/10 text-[#FFB800] border-[#FFB800] font-black' 
           : 'text-slate-400 border-transparent hover:bg-[#002d5c] hover:text-white font-black'
-      }`}
+      } ${colapsado ? 'lg:px-0 lg:justify-center' : ''}`}
     >
       <IconComponent size={15} strokeWidth={2.5} />
-      <span className="text-[11px] uppercase tracking-widest">{label}</span>
+      <span className={`text-[11px] uppercase tracking-widest ${colapsado ? 'lg:hidden' : ''}`}>{label}</span>
     </Link>
   )
 }
 
-function SubNavLink({ href, label, onClick, isActive }: { href: string; label: string; onClick: () => void; isActive: boolean }) {
+function SubNavLink({ href, label, onClick, isActive, colapsado, icon: IconComponent }: { href: string; label: string; onClick: () => void; isActive: boolean; colapsado: boolean; icon: typeof Wrench }) {
   return (
     <Link 
       href={href} 
       onClick={onClick} 
+      title={label}
+      aria-label={label}
       className={`flex items-center pl-16 py-2.5 text-[10px] uppercase tracking-widest transition-all font-bold ${
         isActive 
           ? 'text-[#FFB800] font-black bg-white/5' 
           : 'text-slate-400 hover:text-white hover:pl-17'
-      }`}
+      } ${colapsado ? 'lg:pl-0 lg:hover:pl-0 lg:justify-center lg:mx-2 lg:rounded-lg' : ''}`}
     >
-      <span className={`mr-2.5 transition-colors ${isActive ? 'text-[#FFB800]' : 'text-slate-500'}`}>•</span> 
-      {label}
+      {colapsado && <IconComponent size={17} className="hidden lg:block" />}
+      <span className={colapsado ? 'lg:hidden' : ''}><span className={`mr-2.5 transition-colors ${isActive ? 'text-[#FFB800]' : 'text-slate-500'}`}>•</span>{label}</span>
     </Link>
   )
 }

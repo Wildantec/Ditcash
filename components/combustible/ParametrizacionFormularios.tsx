@@ -7,14 +7,19 @@ import { Car, Plus, Trash2, Edit2, X, Loader2, FileSpreadsheet, ChevronDown, Use
 import Swal from 'sweetalert2'
 
 import CalculadoraCombustibleModal from './CalculadoraCombustibleModal'
+import ReporteTaller from './ReporteTaller'
+import { useRouter } from 'next/navigation'
 
 interface ModuloVehiculosProps {
   kardexInicial: any[]
   vehiculos: any[]
   vendedores: any[]
+  puedeEditarIntervalo?: boolean
 }
 
-export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [], vendedores = [] }: ModuloVehiculosProps) {
+export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [], vendedores = [], puedeEditarIntervalo = false }: ModuloVehiculosProps) {
+  const router = useRouter()
+  const [vistaTaller, setVistaTaller] = useState<'flota' | 'general' | 'aceite'>('flota')
   const [listaKardex, setListaKardex] = useState<any[]>(kardexInicial)
   const [tablaRenderizada, setTablaRenderizada] = useState<any[]>([])
 
@@ -57,6 +62,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
   const [maintCosto, setMaintCosto] = useState('')
   const [maintFecha, setMaintFecha] = useState('')
   const [maintDescripcion, setMaintDescripcion] = useState('')
+  const [maintEsAceite, setMaintEsAceite] = useState(false)
 
   const vendedorSeleccionado = vendedorId ? vendedores.find(v => v.id.toString() === vendedorId) : null
 
@@ -278,34 +284,19 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
     setLoading(true)
     const res = await registrarMantenimientoAction({
       placa: maintPlaca,
-      kmMantenimiento: parseFloat(maintKm || '0'),
+      kmMantenimiento: maintKm === '' ? null : Number(maintKm),
+      esCambioAceite: maintEsAceite,
       taller: maintTaller,
       factura: maintFactura,
       costo: parseFloat(maintCosto || '0'),
-      fechaFactura: maintFecha ? new Date(maintFecha) : new Date(),
+      fechaFactura: maintFecha ? new Date(`${maintFecha}T12:00:00-05:00`) : new Date(),
       descripcion: maintDescripcion
     })
 
     if (res.success) {
       setIsModalMantenimientoOpen(false)
-      const carro = vehiculos.find(v => v.placa === maintPlaca)
-      const vNombre = carro?.asignaciones?.[0]?.user?.nombre || 'SIN ASIGNAR'
-
-      const nuevoMantenimiento = {
-        id: Date.now(),
-        fechaTransaccion: maintFecha || new Date().toISOString(),
-        choferEnEseMomento: vNombre,
-        kmMantenimiento: parseFloat(maintKm || '0'),
-        kmEnEseMomento: parseFloat(maintKm || '0'),
-        tipoMovimiento: 'MANTENIMIENTO',
-        taller: maintTaller.toUpperCase(),
-        factura: maintFactura.toUpperCase(),
-        costoTransaccion: parseFloat(maintCosto || '0'),
-        observaciones: maintDescripcion.toUpperCase(),
-        vehiculo: carro ? { id: carro.id, placa: carro.placa, marcaModelo: carro.marcaModelo } : { placa: maintPlaca, marcaModelo: 'DESCONOCIDO' }
-      }
-
-      setListaKardex(prev => [nuevoMantenimiento, ...prev])
+      if (res.registro) setListaKardex(prev => [res.registro, ...prev].sort((a, b) => new Date(b.fechaTransaccion).getTime() - new Date(a.fechaTransaccion).getTime() || b.id - a.id))
+      router.refresh()
       Swal.fire('Éxito', 'Mantenimiento registrado en el Kardex.', 'success')
     } else {
       Swal.fire('Error', (res as any).error, 'error')
@@ -337,9 +328,13 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
         <div className="flex items-center gap-2 flex-nowrap w-full sm:w-auto mt-1 sm:mt-0 justify-end">
           <button type="button" onClick={() => setCalculadoraAbierta(true)} className="bg-[#001F3F] text-[#FFB800] font-black text-[9px] uppercase tracking-widest px-3 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md hover:bg-black transition-colors whitespace-nowrap"><Calculator size={11} strokeWidth={3} /><span>Simulador Galonaje</span></button>
           <button type="button" onClick={abrirModalNuevoRegistro} className="bg-blue-700 text-white font-black text-[9px] uppercase tracking-widest px-3 py-2.5 rounded-xl flex items-center gap-1 shadow-lg hover:bg-blue-800 transition-colors whitespace-nowrap"><Plus size={11} strokeWidth={3} /> Nuevo Registro / Traspaso</button>
-          <button type="button" onClick={() => { setMaintFecha(new Date().toISOString().split('T')[0]); setMaintDescripcion(''); setIsModalMantenimientoOpen(true); }} className="bg-[#001F3F] text-[#FFB800] font-black text-[9px] uppercase tracking-widest px-3 py-2.5 rounded-xl flex items-center gap-1 shadow-lg hover:bg-black transition-colors whitespace-nowrap"><Wrench size={11} strokeWidth={3} /> Registrar Mantenimiento</button>
+          <button type="button" onClick={() => { setMaintFecha(new Date().toLocaleDateString('en-CA')); setMaintDescripcion(''); setMaintEsAceite(false); setMaintKm(''); setMaintTaller(''); setMaintFactura(''); setMaintCosto(''); setIsModalMantenimientoOpen(true); }} className="bg-[#001F3F] text-[#FFB800] font-black text-[9px] uppercase tracking-widest px-3 py-2.5 rounded-xl flex items-center gap-1 shadow-lg hover:bg-black transition-colors whitespace-nowrap"><Wrench size={11} strokeWidth={3} /> Ingreso a Taller</button>
         </div>
       </header>
+
+      <div className="mb-4 flex flex-wrap gap-2" aria-label="Vistas de control de flota">
+        {([{ id: 'flota', label: 'Flota de vehículos' }, { id: 'general', label: 'Gastos generales taller' }, { id: 'aceite', label: 'Rendimiento de aceites' }] as const).map(vista => <button key={vista.id} type="button" aria-pressed={vistaTaller === vista.id} onClick={() => setVistaTaller(vista.id)} className={`rounded-xl px-4 py-2 text-xs font-bold ${vistaTaller === vista.id ? 'bg-[#001F3F] text-[#FFB800]' : 'border border-slate-200 bg-white text-slate-500'}`}>{vista.label}</button>)}
+      </div>
 
       {/* BARRA DE FILTROS */}
       <div className="bg-slate-100 border border-slate-200 rounded-xl p-2.5 mb-4 flex flex-col md:flex-row items-end gap-2 shadow-inner w-full">
@@ -369,14 +364,16 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
         </div>
         <div className="flex items-center gap-1.5 w-full md:w-auto justify-end">
           <button type="button" onClick={handleLimpiarFiltros} className="bg-slate-200 text-slate-700 hover:bg-slate-300 font-black text-[9px] uppercase tracking-widest px-4 py-2.5 rounded-lg flex items-center justify-center gap-1 h-[34px] transition-colors whitespace-nowrap w-full md:w-auto"><RotateCcw size={11} strokeWidth={3} /> Limpiar</button>
-          <button type="button" onClick={handleDescargaExcel} disabled={exportando} className="bg-emerald-600 text-white hover:bg-emerald-700 font-black text-[9px] uppercase tracking-widest px-4 py-2.5 rounded-lg flex items-center justify-center gap-1 shadow h-[34px] transition-colors whitespace-nowrap w-full md:w-auto">
+          {vistaTaller === 'flota' && <button type="button" onClick={handleDescargaExcel} disabled={exportando} className="bg-emerald-600 text-white hover:bg-emerald-700 font-black text-[9px] uppercase tracking-widest px-4 py-2.5 rounded-lg flex items-center justify-center gap-1 shadow h-[34px] transition-colors whitespace-nowrap w-full md:w-auto">
             {exportando ? <Loader2 size={11} className="animate-spin" /> : <FileSpreadsheet size={11} />}
             <span>Exportar Excel</span>
-          </button>
+          </button>}
         </div>
       </div>
 
       {/* TABLA PRINCIPAL DE REGISTROS */}
+      {vistaTaller !== 'flota' && <ReporteTaller registros={listaKardex} tipo={vistaTaller} filtros={{ placa: filtroPlaca, vendedorId: filtroVendedor, fechaDesde, fechaHasta }} vendedores={vendedores} vehiculos={vehiculos} puedeEditar={puedeEditarIntervalo} />}
+      {vistaTaller === 'flota' && (
       <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -414,7 +411,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
                     <td className="p-3 text-center font-mono font-black text-teal-600">{kmActualTramo.toLocaleString()} KM</td>
                     
                     <td className="p-3 text-left uppercase text-[10px] text-slate-500 truncate max-w-[120px]">
-                      <span className="block text-[8px] font-black text-indigo-500 tracking-wider">{k.tipoMovimiento}</span>
+                      <span className="block text-[8px] font-black text-indigo-500 tracking-wider">{k.esCambioAceite === true ? 'CAMBIO DE ACEITE' : k.tipoMovimiento}</span>
                       {k.taller || 'S/N'} {k.factura ? `| F: ${k.factura}` : ''}
                     </td>
 
@@ -442,6 +439,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
         </div>
       </div>
 
+      )}
       {/* MODAL DETALLADO DE KARDEX POR VEHÍCULO CON PRECIO INCORPORADO */}
       {isKardexModalOpen && vehiculoKardexSeleccionado && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
@@ -464,7 +462,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
                   <div key={k.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between gap-3 text-[11px] font-bold text-slate-600">
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${k.tipoMovimiento === 'MANTENIMIENTO' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-700'}`}>{k.tipoMovimiento}</span>
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${k.tipoMovimiento === 'MANTENIMIENTO' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-700'}`}>{k.esCambioAceite === true ? 'CAMBIO DE ACEITE' : k.tipoMovimiento}</span>
                         <span className="text-slate-400 font-mono text-[9px]">{k.fechaTransaccion ? new Date(k.fechaTransaccion).toISOString().split('T')[0] : 'S/F'}</span>
                       </div>
                       <p className="text-[#001F3F] font-extrabold uppercase text-[11px] leading-tight">{k.observaciones}</p>
@@ -593,7 +591,7 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-[400px] rounded-2xl p-5 shadow-2xl relative">
             <button type="button" onClick={() => setIsModalMantenimientoOpen(false)} className="absolute top-4 right-4 text-slate-400"><X size={16} /></button>
-            <h2 className="text-base font-black text-[#001F3F] uppercase mb-3 flex items-center gap-1.5"><Wrench className="text-[#FFB800]" size={16} /> Cargar Nuevo Mantenimiento</h2>
+            <h2 className="text-base font-black text-[#001F3F] uppercase mb-3 flex items-center gap-1.5"><Wrench className="text-[#FFB800]" size={16} /> Registrar Ingreso a Taller</h2>
             <form onSubmit={handleMantenimientoSubmit} className="space-y-2 text-[#001F3F]">
               <div>
                 <label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Seleccionar Placa Vehicular</label>
@@ -604,7 +602,9 @@ export default function ModuloVehiculosAdmin({ kardexInicial = [], vehiculos = [
                   ))}
                 </select>
               </div>
-              <div><label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Kilómetros en Tablero (Marcación de Entrada)</label><input type="number" required placeholder="EJ: 25000" value={maintKm} onChange={(e) => setMaintKm(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-black text-xs font-mono h-[34px]" /></div>
+              <label className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-bold"><input type="checkbox" checked={maintEsAceite} onChange={e => setMaintEsAceite(e.target.checked)} className="accent-[#001F3F]" /> Se realizó cambio de aceite</label>
+              <p className="text-[10px] text-slate-500">Marca esta opción solo si se cambió el aceite. Las otras reparaciones no reinician su control.</p>
+              <div><label className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Kilómetros en Tablero ({maintEsAceite ? 'Obligatorio' : 'Opcional'})</label><input type="number" min="0" required={maintEsAceite} placeholder="EJ: 25000" value={maintKm} onChange={(e) => setMaintKm(e.target.value)} className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg font-black text-xs font-mono h-[34px]" /></div>
               
               <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
                 <p className="text-[8px] font-black uppercase text-[#001F3F] flex items-center gap-1"><ShieldCheck size={11} className="text-[#FFB800]" /> Comprobante de Taller</p>

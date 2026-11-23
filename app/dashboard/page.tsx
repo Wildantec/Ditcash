@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/authorization'
 import DashboardVendedor from '@/components/dashboard/DashboardVendedor'
 import DashboardAdmin from '@/components/dashboard/DashboardAdmin'
 import DashboardMarketing from '@/components/dashboard/DashboardMarketing'
-import DashboardServicioTecnico from '@/app/dashboard/servicio-tecnico/page'
+import DashboardServicioTecnico from '@/app/dashboard/control-flota/page'
 import DashboardContabilidad from '@/components/dashboard/DashboardContabilidad'
 
 export const dynamic = 'force-dynamic'

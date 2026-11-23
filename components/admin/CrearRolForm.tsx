@@ -32,12 +32,18 @@ const ESTRUCTURA_PERMISOS = [
   },
   {
     id: 'logistica',
-    label: 'Logística y Activos',
+    label: 'Control de Flota',
     icon: Wrench,
     submodulos: [
       { id: 'vehiculos', label: 'Flota de Vehículos' },
       { id: 'mantenimientos', label: 'Servicio y Reparaciones' }
     ]
+  },
+  {
+    id: 'servicio_tecnico',
+    label: 'Servicio Técnico',
+    icon: Wrench,
+    submodulos: [{ id: 'servicio_tecnico', label: 'Reparaciones y Reportes' }]
   },
   {
     id: 'contabilidad_modulo',

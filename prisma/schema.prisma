@@ -223,6 +223,8 @@ model KardexVehiculo {
   vehiculo           Vehiculo @relation(fields: [vehiculoId], references: [id], onDelete: Cascade)
   fechaTransaccion   DateTime @default(now())
   tipoMovimiento     String
+  esCambioAceite     Boolean?
+  kilometrajeServicio Float?
   kmEnEseMomento     Float
   kmMantenimiento    Float
   costoTransaccion   Float
@@ -269,10 +271,71 @@ model EvaluacionVendedor {
   entregaMercaderia Boolean         @default(false)
   superEstrella     Boolean         @default(false)
   observacion       String?         @db.Text
+  revision          Int             @default(0)
+  calificacionCierre String?
+  pendientes        PendienteFacturacion[]
   creadaEn          DateTime        @default(now())
   semana            SemanaComercial @relation(fields: [semanaId], references: [id], onDelete: Cascade)
   vendedor          Vendedor        @relation(fields: [vendedorId], references: [id])
 
   @@unique([semanaId, vendedorId])
   @@map("evaluaciones_vendedores")
+}
+
+model PendienteFacturacion {
+  id             Int                @id @default(autoincrement())
+  evaluacionId   Int
+  cantidad       Int
+  valor          Decimal            @db.Decimal(14, 2)
+  motivo         String             @db.VarChar(200)
+  referencia     String?            @db.VarChar(500)
+  creadoEn       DateTime           @default(now())
+  creadoPor      String
+  regularizadoEn DateTime?
+  regularizadoPor String?
+  evaluacion     EvaluacionVendedor @relation(fields: [evaluacionId], references: [id], onDelete: Cascade)
+
+  @@index([evaluacionId, regularizadoEn])
+  @@map("pendientes_facturacion")
+}
+
+model MesServicioTecnico {
+  id              Int      @id @default(autoincrement())
+  mesAnio         String   @unique // Formato: "YYYY-MM" (Ej: "2026-05")
+  presupuesto     Float    // El límite máximo de gasto asignado al inicio del mes
+  estado          String   @default("ABIERTO") // "ABIERTO" o "CERRADO"
+
+  // Relación: Un mes contiene varias reparaciones
+  reparaciones    ReparacionServicioTecnico[]
+
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+}
+
+model ReparacionServicioTecnico {
+  id              Int      @id @default(autoincrement())
+  fecha           DateTime @default(now())
+  cliente         String   // Nombre del cliente o sucursal
+  // Le agregamos el ? para que sea opcional
+  equipoId        Int
+  equipo          EquipoServicioTecnico @relation(fields: [equipoId], references: [id])
+  descripcion     String? @db.Text // Daño y qué se hizo
+  comprobante     String?  // N° de factura de los repuestos (Opcional)
+  valorGastado    Float    // Lo que costó la reparación
+  valorRecuperado Float    @default(0) // Lo que se le cobró al cliente
+  resultadoNeto   Float    // valorRecuperado - valorGastado
+  estadoRentabilidad String // "GANANCIA", "PERDIDA" o "EMPATE"
+  mesId           Int
+  mes             MesServicioTecnico @relation(fields: [mesId], references: [id])
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+}
+
+model EquipoServicioTecnico {
+  id            Int       @id @default(autoincrement())
+  nombre        String    @unique
+  habilitado    Boolean   @default(true)
+
+  // Relación: Un equipo puede tener muchas reparaciones
+  reparaciones  ReparacionServicioTecnico[]
 }

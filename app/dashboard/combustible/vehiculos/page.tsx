@@ -45,6 +45,7 @@ export default async function ParametrizacionCombustiblePage() {
       kardexInicial={registrosKardex}
       vehiculos={vehiculos} 
       vendedores={vendedoresAraujo} 
+      puedeEditarIntervalo={userHasPermission(usuario, 'vehiculos', 'editar')}
     />
   )
 }
